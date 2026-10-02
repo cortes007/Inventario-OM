@@ -7,9 +7,10 @@ import { currentToolStatus, statusLabel } from '../utils/inventory'
 import { Alert, Badge, Button, Card, Combobox, Field, Modal, NumberField } from '../components/ui'
 import ToolDetail from '../components/ToolDetail'
 import ToolDocuments from '../components/ToolDocuments'
+import { createAssetCode } from '../utils/id'
 
 const EMPTY_FORM = (categories) => ({
-  codigo: `HER-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+  codigo: createAssetCode(),
   nombre: '',
   categoria: categories[0] || 'General',
   ubicacion: '',

@@ -16,8 +16,9 @@ export class MovementRepository extends BaseRepository {
       .order('id', { ascending: false })
       .limit(limit))
   }
-  async createBatch({ items, responsable, destino, observacion }) {
-    const { data, error } = await this.c.rpc('registrar_movimientos_lote', {
+  async createBatch({ items, tipo = 'SALIDA', responsable, destino, observacion }) {
+    const functionName = tipo === 'ENTRADA' ? 'registrar_devoluciones_lote' : 'registrar_movimientos_lote'
+    const { data, error } = await this.c.rpc(functionName, {
       p_movimientos: items.map(({ herramienta_id, cantidad }) => ({ herramienta_id, cantidad })),
       p_responsable: responsable,
       p_destino: destino || null,

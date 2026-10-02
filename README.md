@@ -58,7 +58,7 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
    cd Inventario-OM/om-herramental
    npm install
    ```
-2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica todas las migraciones de `supabase/migrations/` en orden, incluida `20261002030000_enable_inventory_realtime.sql`. En Supabase → **Database → Replication**, confirma que `herramientas` y `movimientos` estén habilitadas para Realtime. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
+2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica todas las migraciones de `supabase/migrations/` en orden, incluida `20261002040000_atomic_multi_tool_returns.sql` para habilitar devoluciones de varias herramientas en una operación. En Supabase → **Database → Replication**, confirma que `herramientas` y `movimientos` estén habilitadas para Realtime. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
 3. En Supabase → **Authentication → Users**, crea un usuario (marca *Auto Confirm User*).
 4. Copia `.env.example` a `.env` y completa los valores (Project Settings → API):
    ```dotenv

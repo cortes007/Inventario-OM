@@ -4,44 +4,43 @@ import { movementService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
 import { useInventoryRealtime } from '../hooks/useInventoryRealtime'
 import { Alert, Badge, Button, Card, Combobox, Field, NumberField } from '../components/ui'
+import { createId } from '../utils/id'
 
 const EMPTY = { herramienta_id: '', tipo: 'SALIDA', cantidad: 1, responsable: '', destino: '', observacion: '' }
-const newItem = () => ({ id: crypto.randomUUID(), herramienta_id: '', cantidad: 1 })
+const newItem = () => ({ id: createId(), herramienta_id: '', cantidad: 1 })
 
 export default function Movements() {
   const tools = useResource(() => toolService.list())
   const hist = useResource(() => movementService.history())
+  const outstanding = useResource(() => movementService.outstandingByTool())
   const [f, setF] = useState(EMPTY); const [err, setErr] = useState(''); const [ok, setOk] = useState('')
   const [items, setItems] = useState([newItem()])
   const [saving, setSaving] = useState(false)
   const refreshInventory = useCallback(async () => {
-    await Promise.all([tools.reload(), hist.reload()])
-  }, [tools.reload, hist.reload])
+    await Promise.all([tools.reload(), hist.reload(), outstanding.reload()])
+  }, [tools.reload, hist.reload, outstanding.reload])
   const { error: realtimeError } = useInventoryRealtime(refreshInventory)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-  const selected = tools.data.find((t) => t.id === f.herramienta_id)
   const people = [...new Set(hist.data.map((m) => m.responsable))]
   const places = [...new Set(hist.data.map((m) => m.destino).filter(Boolean))]
+  const eligibleTools = tools.data.filter((tool) => f.tipo === 'SALIDA'
+    ? tool.estado !== 'BAJA' && tool.stock_actual > 0
+    : (outstanding.data[tool.id] || 0) > 0)
+  const addableTools = eligibleTools.filter((tool) => !items.some((item) => item.herramienta_id === tool.id))
   const setType = (type) => {
-    setF({ ...f, tipo })
-    if (type === 'SALIDA') setItems([newItem()])
+    setF((current) => ({ ...current, tipo: type }))
+    setItems([newItem()])
   }
 
   const submit = async (e) => {
     e.preventDefault(); setErr(''); setOk('')
     setSaving(true)
     try {
-      if (f.tipo === 'SALIDA') {
-        const saved = await movementService.registerBatch({ ...f, items })
-        setOk(`Salida registrada para ${f.responsable.trim()} · ${saved.length} herramienta(s).`)
-      } else {
-        const movement = await movementService.register(f)
-        setOk(`Registrado ${movement.codigo}`)
-      }
+      const saved = await movementService.registerBatch({ ...f, items })
+      setOk(`${f.tipo === 'SALIDA' ? 'Salida' : 'Devolución'} registrada para ${f.responsable.trim()} · ${saved.length} herramienta(s).`)
       setF({ ...EMPTY, tipo: f.tipo })
       setItems([newItem()])
-      tools.reload()
-      hist.reload()
+      await refreshInventory()
     } catch (submitError) {
       setErr(submitError.message)
     } finally {
@@ -51,7 +50,7 @@ export default function Movements() {
 
   return (
     <div className="space-y-5">
-      <div><h2 className="text-xl font-semibold">Entradas y salidas</h2><p className="text-sm text-muted">Asigna varias herramientas a un mismo responsable en una salida; todas se registran juntas.</p></div>
+      <div><h2 className="text-xl font-semibold">Entradas y salidas</h2><p className="text-sm text-muted">Registra salidas o devoluciones de varias herramientas para una persona; cada operación se guarda completa.</p></div>
       {realtimeError && <p role="status" className="text-xs text-amber-400">Realtime no conectado ({realtimeError}). Actualizando cada 5 segundos.</p>}
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
         <Card className="h-fit p-4">
@@ -61,53 +60,58 @@ export default function Movements() {
                 <button type="button" key={v} onClick={() => setType(v)}
                   className={`flex items-center justify-center gap-2 rounded-md border py-2 text-sm ${f.tipo === v ? 'border-brand bg-emerald-950 text-brand' : 'border-line text-muted'}`}><I size={16} />{l}</button>))}
             </div>
-            {f.tipo === 'SALIDA' ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-muted">Herramientas a entregar</p>
-                  <Button type="button" variant="ghost" className="px-2 py-1 text-xs"
-                    disabled={!tools.data.some((tool) => tool.estado !== 'BAJA' && tool.stock_actual > 0 && !items.some((item) => item.herramienta_id === tool.id))}
-                    onClick={() => setItems((current) => [...current, newItem()])}><Plus size={14} />Agregar</Button>
-                </div>
-                {items.map((item) => {
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted">{f.tipo === 'SALIDA' ? 'Herramientas a entregar' : 'Herramientas a devolver'}</p>
+                <Button type="button" variant="ghost" className="px-2 py-1 text-xs"
+                  disabled={tools.loading || (f.tipo === 'ENTRADA' && outstanding.loading) || !addableTools.length}
+                  onClick={() => { setErr(''); setItems((current) => [...current, newItem()]) }}><Plus size={14} />Agregar</Button>
+              </div>
+              {items.map((item) => {
                   const tool = tools.data.find((entry) => entry.id === item.herramienta_id)
+                  const quantityAvailable = f.tipo === 'SALIDA' ? tool?.stock_actual || 0 : outstanding.data[item.herramienta_id] || 0
                   const selectedIds = items.filter((entry) => entry.id !== item.id).map((entry) => entry.herramienta_id)
                   const options = tools.data
-                    .filter((entry) => entry.estado !== 'BAJA' && entry.stock_actual > 0 && (entry.id === item.herramienta_id || !selectedIds.includes(entry.id)))
-                    .map((entry) => ({ value: entry.id, label: `${entry.codigo} · ${entry.nombre} · stock ${entry.stock_actual}` }))
+                    .filter((entry) => {
+                      const available = f.tipo === 'SALIDA' ? entry.estado !== 'BAJA' && entry.stock_actual > 0 : (outstanding.data[entry.id] || 0) > 0
+                      return available && (entry.id === item.herramienta_id || !selectedIds.includes(entry.id))
+                    })
+                    .map((entry) => ({
+                      value: entry.id,
+                      label: `${entry.codigo} · ${entry.nombre} · ${f.tipo === 'SALIDA' ? `stock ${entry.stock_actual}` : `prestadas ${outstanding.data[entry.id] || 0}`}`,
+                    }))
                   return <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 rounded-md border border-line p-2">
                     <div className="col-span-2 flex min-w-0 items-end gap-2">
                       <div className="min-w-0 flex-1">
                         <Combobox label={`Herramienta ${items.findIndex((entry) => entry.id === item.id) + 1}`} value={item.herramienta_id}
-                          options={options} required placeholder="Buscar herramienta…"
+                          options={options} required placeholder={f.tipo === 'SALIDA' ? 'Buscar herramienta…' : 'Buscar herramienta prestada…'}
                           onChange={(value) => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, herramienta_id: value } : entry))} />
                       </div>
-                      {items.length > 1 && <button type="button" aria-label="Quitar herramienta de la salida" className="mb-1 rounded-md p-2 text-muted hover:bg-line hover:text-red-400"
+                      {items.length > 1 && <button type="button" aria-label="Quitar herramienta de la operación" className="mb-1 rounded-md p-2 text-muted hover:bg-line hover:text-red-400"
                         onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}><Trash2 size={16} /></button>}
                     </div>
                     <div className="min-w-0">
-                      <NumberField label="Cantidad" min={1} max={tool?.stock_actual || Number.POSITIVE_INFINITY} required value={String(item.cantidad)}
+                      <NumberField label="Cantidad" min={1} max={quantityAvailable || Number.POSITIVE_INFINITY} required value={String(item.cantidad)}
                         onChange={(value) => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, cantidad: value } : entry))} />
                     </div>
-                    <p className="pb-2 text-right text-xs text-muted">{tool ? `${tool.stock_actual} disponible(s)` : 'Selecciona herramienta'}</p>
+                    <p className="pb-2 text-right text-xs text-muted">{tool ? `${quantityAvailable} ${f.tipo === 'SALIDA' ? 'disponible(s)' : 'prestada(s)'}` : 'Selecciona herramienta'}</p>
                   </div>
-                })}
-              </div>
-            ) : (
-              <>
-                <Combobox label="Herramienta" value={f.herramienta_id} onChange={(value) => setF({ ...f, herramienta_id: value })}
-                  options={tools.data.filter((t) => t.estado !== 'BAJA').map((t) => ({ value: t.id, label: `${t.codigo} · ${t.nombre}` }))} required placeholder="Buscar herramienta…" />
-                {selected && <p className="text-xs text-muted">Stock actual: <b className="text-zinc-200">{selected.stock_actual}</b></p>}
-                <NumberField label="Cantidad" min={1} required value={String(f.cantidad)} onChange={(value) => setF({ ...f, cantidad: value })} />
-              </>
-            )}
+              })}
+              {f.tipo === 'SALIDA' && !tools.loading && !tools.error && !addableTools.length &&
+                <p className="text-xs text-muted">{eligibleTools.length
+                  ? 'Ya agregaste todas las herramientas disponibles para salida.'
+                  : 'No hay herramientas disponibles en bodega para salida.'}</p>}
+              {f.tipo === 'ENTRADA' && !outstanding.error && !tools.loading &&
+                !tools.data.some((tool) => (outstanding.data[tool.id] || 0) > 0) &&
+                <p className="text-xs text-muted">No hay herramientas pendientes de devolución.</p>}
+            </div>
             <Field label={f.tipo === 'SALIDA' ? 'Quién la recibe' : 'Quién la devuelve'}><input className="inp" list="people" required value={f.responsable} onChange={set('responsable')} /></Field>
             <Field label="Obra o destino"><input className="inp" list="places" value={f.destino} onChange={set('destino')} /></Field>
             <Field label="Observación (opcional)"><input className="inp" value={f.observacion} onChange={set('observacion')} /></Field>
             <datalist id="people">{people.map((p) => <option key={p} value={p} />)}</datalist>
             <datalist id="places">{places.map((p) => <option key={p} value={p} />)}</datalist>
-            <Alert>{err}</Alert>{ok && <p className="text-sm text-brand">{ok}</p>}
-            <Button disabled={saving} className="w-full justify-center">{saving ? 'Guardando…' : `Registrar ${f.tipo === 'SALIDA' ? 'salida' : 'entrada'}`}</Button>
+            <Alert>{err || tools.error || outstanding.error}</Alert>{ok && <p className="text-sm text-brand">{ok}</p>}
+            <Button disabled={saving} className="w-full justify-center">{saving ? 'Guardando…' : `Registrar ${f.tipo === 'SALIDA' ? 'salida' : 'devolución'}`}</Button>
           </form>
         </Card>
         <Card className="min-w-0 overflow-x-auto">
