@@ -115,11 +115,11 @@ export default function Tools() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">Herramientas</h2>
+        <div className="min-w-0"><h2 className="text-xl font-semibold">Herramientas</h2>
           <p className="text-sm text-muted">{data.length} registradas{low > 0 && <span className="ml-2 text-amber-400">{low} con stock bajo</span>}</p></div>
-        <Button onClick={openNewForm}><Plus size={16} />Nueva herramienta</Button>
+        <Button className="shrink-0" onClick={openNewForm}><Plus size={16} />Nueva herramienta</Button>
       </div>
-      <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_auto] lg:items-center">
+      <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(240px,1fr)_auto] xl:items-center">
         <div className="relative min-w-0">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input className="inp" style={{ paddingLeft: '2.5rem' }} placeholder="Buscar por código, nombre, categoría o ubicación" value={q} onChange={(event) => setQ(event.target.value)} />
@@ -133,8 +133,9 @@ export default function Tools() {
       </div>
       <Alert>{error || loanError || err}</Alert>
       {realtimeError && <p role="status" className="text-xs text-amber-400">{realtimeError}</p>}
-      <Card className="overflow-x-auto">
-        <table className="w-full">
+      <div className="hidden min-w-0 md:block">
+        <Card className="min-w-0 overflow-x-auto">
+        <table className="w-full min-w-[760px]">
           <thead className="border-b border-line"><tr>{['Código de activo', 'Nombre', 'Categoría', 'Ubicación', 'En bodega', 'Estado', ''].map((heading) => <th key={heading} className="th whitespace-nowrap">{heading}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">
             {rows.map((tool) => {
@@ -155,12 +156,43 @@ export default function Tools() {
             {!loading && !rows.length && <tr><td colSpan={7} className="td py-10 text-center text-muted">{data.length ? 'No hay herramientas que coincidan con esos filtros.' : 'Aún no hay herramientas. Crea la primera con “Nueva herramienta”.'}</td></tr>}
           </tbody>
         </table>
-      </Card>
+        </Card>
+      </div>
+      <div className="space-y-3 md:hidden">
+        {rows.map((tool) => {
+          const loaned = outstanding[tool.id] || 0
+          const status = currentToolStatus(tool, loaned)
+          const partlyInUse = tool.estado === 'DISPONIBLE' && tool.stock_actual > 0 && loaned > 0
+          return <Card key={tool.id} className="min-w-0 overflow-hidden">
+            <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line p-3">
+              <div className="min-w-0">
+                <p className="break-all font-mono text-sm text-brand">{tool.codigo}</p>
+                <h3 className="mt-1 break-words font-medium">{tool.nombre}</h3>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <Badge v={status} />
+                {partlyInUse && <Badge v="EN_USO" />}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-3 p-3">
+              <div className="min-w-0"><p className="text-xs text-muted">Categoría</p><p className="break-words text-sm">{tool.categoria}</p></div>
+              <div className="min-w-0"><p className="text-xs text-muted">Ubicación</p><p className="break-words text-sm">{tool.ubicacion || '—'}</p></div>
+              <div><p className="text-xs text-muted">En bodega</p><p className={`text-sm font-medium ${tool.stock_actual <= tool.stock_minimo ? 'text-amber-400' : ''}`}>{tool.stock_actual}</p></div>
+              <div><p className="text-xs text-muted">Stock mínimo</p><p className="text-sm">{tool.stock_minimo}</p></div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-line p-2">
+              <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => setDetail(tool)}><Eye size={18} /></button>
+              <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '0', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={18} /></button>
+            </div>
+          </Card>
+        })}
+        {!loading && !rows.length && <Card className="px-4 py-8 text-center text-sm text-muted">{data.length ? 'No hay herramientas que coincidan con esos filtros.' : 'Aún no hay herramientas. Crea la primera con “Nueva herramienta”.'}</Card>}
+      </div>
       {form && <Modal title={form.id ? `Editar ${form.codigo}` : 'Nueva herramienta'} onClose={closeForm}>
         <form onSubmit={save} className="space-y-3">
           <Field label="ID único / código de activo"><input className="inp font-mono" required maxLength={100} value={form.codigo} onChange={set('codigo')} /></Field>
           <Field label="Nombre"><input className="inp" required value={form.nombre} onChange={set('nombre')} /></Field>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <Combobox label="Categoría" value={form.categoria} options={categories} onChange={(value) => setForm({ ...form, categoria: value })} allowCustom placeholder="Buscar o escribir categoría" required />
             <Field label="Ubicación"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
             {!form.id && <NumberField label="Cantidad inicial" value={form.stock_inicial} onChange={(value) => setForm({ ...form, stock_inicial: value })} />}

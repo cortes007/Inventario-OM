@@ -53,19 +53,19 @@ export default function Reports() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h2 className="text-xl font-semibold">Informes</h2><p className="text-sm text-muted">Filtra los movimientos y exporta el inventario actual.</p></div>
-        <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="min-w-0"><h2 className="text-xl font-semibold">Informes</h2><p className="text-sm text-muted">Filtra los movimientos y exporta el inventario actual.</p></div>
+        <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('xlsx')}><FileSpreadsheet size={16} />Inventario XLSX</Button>
           <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('pdf')}><FileText size={16} />Inventario PDF</Button>
           <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('csv')}><Download size={16} />Inventario CSV</Button>
         </div>
       </div>
-      <Card className="flex flex-wrap items-end gap-3 p-4">
-        <Field label="Desde"><input type="date" className="inp" value={flt.desde} onChange={set('desde')} /></Field>
-        <Field label="Hasta"><input type="date" className="inp" value={flt.hasta} onChange={set('hasta')} /></Field>
-        <Field label="Tipo"><select className="inp" value={flt.tipo} onChange={set('tipo')}><option value="">Todos</option><option value="ENTRADA">Entradas</option><option value="SALIDA">Salidas</option></select></Field>
-        <Button disabled={loading || exporting || !data.length} onClick={exportMovements}><FileSpreadsheet size={16} />Movimientos Excel</Button>
+      <Card className="grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(150px,1fr))_auto] xl:items-end">
+        <Field label="Desde"><input type="date" className="inp min-w-0" value={flt.desde} onChange={set('desde')} /></Field>
+        <Field label="Hasta"><input type="date" className="inp min-w-0" value={flt.hasta} onChange={set('hasta')} /></Field>
+        <Field label="Tipo"><select className="inp min-w-0" value={flt.tipo} onChange={set('tipo')}><option value="">Todos</option><option value="ENTRADA">Entradas</option><option value="SALIDA">Salidas</option></select></Field>
+        <Button className="w-full justify-center sm:col-span-2 xl:col-span-1" disabled={loading || exporting || !data.length} onClick={exportMovements}><FileSpreadsheet size={16} />Movimientos Excel</Button>
       </Card>
       <Alert>{exportError}</Alert>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -73,7 +73,7 @@ export default function Reports() {
           <Card key={l} className="p-4"><p className="text-xs text-muted">{l}</p><p className="mt-1 text-2xl font-semibold">{v}</p></Card>))}
       </div>
       <Alert>{error}</Alert>
-      <Card className="max-h-[70vh] overflow-auto">
+      <Card className="max-h-[min(70dvh,720px)] min-w-0 overflow-auto">
         <table className="w-full min-w-[1100px]">
           <thead className="sticky top-0 z-10 border-b border-line bg-panel"><tr>{['Referencia', 'Fecha', 'Tipo', 'Código de activo', 'Herramienta', 'Cant.', 'Responsable', 'Destino', 'Observación'].map((h) => <th key={h} className="th whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">

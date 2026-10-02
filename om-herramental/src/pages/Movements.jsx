@@ -26,7 +26,7 @@ export default function Movements() {
   return (
     <div className="space-y-5">
       <div><h2 className="text-xl font-semibold">Entradas y salidas</h2><p className="text-sm text-muted">La referencia y la fecha se asignan solas; el stock se actualiza al guardar.</p></div>
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(340px,380px)_minmax(0,1fr)]">
         <Card className="h-fit p-4">
           <form onSubmit={submit} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -47,8 +47,8 @@ export default function Movements() {
             <Button className="w-full justify-center">Registrar {f.tipo === 'SALIDA' ? 'salida' : 'entrada'}</Button>
           </form>
         </Card>
-        <Card className="overflow-x-auto">
-          <table className="w-full">
+        <Card className="min-w-0 overflow-x-auto">
+          <table className="w-full min-w-[760px]">
             <thead className="border-b border-line"><tr>{['Referencia', 'Fecha', 'Tipo', 'Herramienta', 'Cant.', 'Responsable', 'Destino'].map((h) => <th key={h} className="th">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-line">
               {hist.data.slice(0, 10).map((m) => (
