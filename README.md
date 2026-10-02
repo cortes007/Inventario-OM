@@ -1,13 +1,14 @@
 # OM Herramental
 
-Sistema de inventario y control de herramientas de **AcabadosOM SAS**. Permite registrar herramientas, controlar sus entradas y salidas (préstamos a obra) y generar informes exportables a Excel, reemplazando el control informal por WhatsApp.
+Sistema de inventario y control de herramientas de **OM Construcciones y Acabados SAS**. Permite registrar herramientas, controlar sus entradas y salidas (préstamos a obra) y generar informes exportables a Excel.
 
 ## Funcionalidades
 
 - **Dashboard** en tiempo real con unidades en bodega, préstamos pendientes, alertas de bajo stock y herramientas en mantenimiento.
 - **CRUD de herramientas** con código de activo autogenerado y editable, búsqueda y filtros dinámicos por estado.
+- **Activos individuales:** cada herramienta nueva se registra como una unidad (cantidad 1) para conservar una ficha y documentación propias.
 - **Detalle de herramienta** con historial de movimientos/cambios de estado y documentos en almacenamiento privado; también permite preadjuntar archivos al crear una herramienta.
-- **Entradas y salidas** con un formulario rápido: responsable y obra se autocompletan con valores anteriores.
+- **Entradas y salidas** con responsable y obra sugeridos; permite entregar varias herramientas a una persona en una sola operación atómica.
 - **Informes** filtrados por rango de fechas y tipo; la tabla completa tiene desplazamiento interno para evitar desbordamiento y el resultado filtrado se puede exportar a Excel XLSX, incluyendo referencia, fecha, tipo, código de activo, herramienta, cantidad, responsable, destino y observación.
 - **Códigos automáticos**: `HER-0001` para herramientas y `MOV-000001` para movimientos; fecha y usuario se asignan solos.
 - **Stock automático**: un trigger en la base de datos actualiza el stock y rechaza salidas mayores al disponible.
@@ -57,7 +58,7 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
    cd Inventario-OM/om-herramental
    npm install
    ```
-2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica las migraciones de `supabase/migrations/` en orden. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
+2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica todas las migraciones de `supabase/migrations/` en orden, incluida `20261002030000_enable_inventory_realtime.sql`. En Supabase → **Database → Replication**, confirma que `herramientas` y `movimientos` estén habilitadas para Realtime. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
 3. En Supabase → **Authentication → Users**, crea un usuario (marca *Auto Confirm User*).
 4. Copia `.env.example` a `.env` y completa los valores (Project Settings → API):
    ```dotenv
@@ -88,8 +89,8 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
 
 ## Despliegue
 
-El proyecto genera archivos estáticos (`npm run build`), así que se puede publicar en Vercel, Netlify o Cloudflare Pages. Configura allí las dos variables `VITE_SUPABASE_*`.
+El proyecto genera archivos estáticos (`npm run build`), así que se puede publicar en Vercel, Netlify o Cloudflare Pages. Configura allí las dos variables `VITE_SUPABASE_*` y vuelve a desplegar después de cambiarlas. Si el WebSocket de Realtime está bloqueado, el inventario se vuelve a consultar automáticamente cada 5 segundos.
 
 ## Equipo
 
-Proyecto del Consultorio Tecnológico, Universidad de Sabaneta, para AcabadosOM SAS.
+Proyecto del Consultorio Tecnológico, Universidad de Sabaneta, para OM Construcciones y Acabados SAS.

@@ -1,4 +1,4 @@
--- Carga inicial del inventario de AcabadosOM SAS (ejecutar DESPUÉS de schema.sql)
+-- Carga inicial del inventario de OM Construcciones y Acabados SAS (ejecutar DESPUÉS de schema.sql)
 insert into public.herramientas (nombre, categoria, ubicacion, stock_minimo, estado) values
  ('Equipo de altura',               'Seguridad',       'Bodega', 0, 'EN_REPARACION'),
  ('Destornillador',                 'Herramienta manual','Bodega', 1, 'DISPONIBLE'),

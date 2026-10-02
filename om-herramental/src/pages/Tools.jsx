@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Eye, Pencil, Plus, Search } from 'lucide-react'
-import { inventoryRealtimeService, movementService, toolDocumentService, toolService } from '../container'
+import { movementService, toolDocumentService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
+import { useInventoryRealtime } from '../hooks/useInventoryRealtime'
 import { currentToolStatus, statusLabel } from '../utils/inventory'
 import { Alert, Badge, Button, Card, Combobox, Field, Modal, NumberField } from '../components/ui'
 import ToolDetail from '../components/ToolDetail'
@@ -12,7 +13,7 @@ const EMPTY_FORM = (categories) => ({
   nombre: '',
   categoria: categories[0] || 'General',
   ubicacion: '',
-  stock_inicial: '0',
+  stock_inicial: '1',
   stock_minimo: '0',
   estado: 'DISPONIBLE',
 })
@@ -25,7 +26,6 @@ const FILTERS = [
 ]
 
 export default function Tools() {
-  const refreshTimer = useRef(null)
   const { data, loading, error, reload } = useResource(() => toolService.list())
   const { data: outstanding, error: loanError, reload: reloadOutstanding } = useResource(() => movementService.outstandingByTool())
   const [q, setQ] = useState('')
@@ -34,24 +34,11 @@ export default function Tools() {
   const [detail, setDetail] = useState(null)
   const [pendingFiles, setPendingFiles] = useState([])
   const [err, setErr] = useState('')
-  const [realtimeError, setRealtimeError] = useState('')
   const [saving, setSaving] = useState(false)
-  useEffect(() => {
-    const refresh = () => {
-      window.clearTimeout(refreshTimer.current)
-      refreshTimer.current = window.setTimeout(() => {
-        reload()
-        reloadOutstanding()
-      }, 200)
-    }
-    const unsubscribe = inventoryRealtimeService.subscribe(refresh, (subscriptionError) => setRealtimeError(subscriptionError?.message || ''))
-    const fallbackRefresh = window.setInterval(refresh, 30_000)
-    return () => {
-      unsubscribe()
-      window.clearInterval(fallbackRefresh)
-      window.clearTimeout(refreshTimer.current)
-    }
+  const refreshInventory = useCallback(async () => {
+    await Promise.all([reload(), reloadOutstanding()])
   }, [reload, reloadOutstanding])
+  const { error: realtimeError } = useInventoryRealtime(refreshInventory)
   const categories = useMemo(() => [...new Set(data.map((tool) => tool.categoria).filter(Boolean))].sort(), [data])
   const activeFilters = useMemo(() => FILTERS.filter(([status]) => {
     if (status === 'EN_USO') return data.some((tool) => (outstanding[tool.id] || 0) > 0)
@@ -87,7 +74,7 @@ export default function Tools() {
         ? await toolService.update(form.id, values)
         : await toolService.create(values)
       if (pendingFiles.length) {
-        setForm({ ...savedTool, stock_inicial: '0', stock_minimo: String(savedTool.stock_minimo) })
+        setForm({ ...savedTool, stock_inicial: '1', stock_minimo: String(savedTool.stock_minimo) })
         const failedFiles = []
         for (const pending of pendingFiles) {
           try {
@@ -132,7 +119,7 @@ export default function Tools() {
         </div>
       </div>
       <Alert>{error || loanError || err}</Alert>
-      {realtimeError && <p role="status" className="text-xs text-amber-400">{realtimeError}</p>}
+      {realtimeError && <p role="status" className="text-xs text-amber-400">Realtime no conectado ({realtimeError}). Actualizando cada 5 segundos.</p>}
       <div className="hidden min-w-0 md:block">
         <Card className="min-w-0 overflow-x-auto">
         <table className="w-full min-w-[760px]">
@@ -149,7 +136,7 @@ export default function Tools() {
                 <td className="td whitespace-nowrap"><Badge v={status} />{partlyInUse && <Badge v="EN_USO" />}<span className="sr-only">{statusLabel(status)}{partlyInUse ? `; ${statusLabel('EN_USO')}` : ''}</span></td>
                 <td className="td whitespace-nowrap text-right">
                   <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="p-1 text-muted hover:text-white" onClick={() => setDetail(tool)}><Eye size={16} /></button>
-                  <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '0', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={16} /></button>
+                  <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '1', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={16} /></button>
                 </td>
               </tr>
             })}
@@ -182,7 +169,7 @@ export default function Tools() {
             </div>
             <div className="flex justify-end gap-2 border-t border-line p-2">
               <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => setDetail(tool)}><Eye size={18} /></button>
-              <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '0', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={18} /></button>
+              <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '1', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={18} /></button>
             </div>
           </Card>
         })}
@@ -195,7 +182,6 @@ export default function Tools() {
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <Combobox label="Categoría" value={form.categoria} options={categories} onChange={(value) => setForm({ ...form, categoria: value })} allowCustom placeholder="Buscar o escribir categoría" required />
             <Field label="Ubicación"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
-            {!form.id && <NumberField label="Cantidad inicial" value={form.stock_inicial} onChange={(value) => setForm({ ...form, stock_inicial: value })} />}
             <NumberField label="Stock mínimo" value={form.stock_minimo} onChange={(value) => setForm({ ...form, stock_minimo: value })} required />
             <Field label="Condición"><select className="inp" value={form.estado} onChange={set('estado')}>
               <option value="DISPONIBLE">Disponible</option>{form.estado === 'EN_USO' && <option value="EN_USO">En uso</option>}<option value="EN_REPARACION">En mantenimiento</option><option value="BAJA">Dado de baja</option>
@@ -206,7 +192,7 @@ export default function Tools() {
             pendingFiles={pendingFiles}
             onPendingFilesChange={setPendingFiles}
           />
-          {!form.id && <p className="text-xs text-muted">Se generó un código único editable. Las unidades iniciales se registrarán como movimiento.</p>}
+          {!form.id && <p className="text-xs text-muted">Cada registro representa una herramienta física única (1 unidad). Para documentar otra herramienta igual, crea otro registro con su propio código y documentos.</p>}
           <Alert>{err}</Alert>
           <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={closeForm}>Cancelar</Button><Button disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button></div>
         </form>

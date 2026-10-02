@@ -16,6 +16,16 @@ export class MovementRepository extends BaseRepository {
       .order('id', { ascending: false })
       .limit(limit))
   }
+  async createBatch({ items, responsable, destino, observacion }) {
+    const { data, error } = await this.c.rpc('registrar_movimientos_lote', {
+      p_movimientos: items.map(({ herramienta_id, cantidad }) => ({ herramienta_id, cantidad })),
+      p_responsable: responsable,
+      p_destino: destino || null,
+      p_observacion: observacion || null,
+    })
+    if (error) throw new Error(error.message)
+    return data
+  }
   forTool(toolId) {
     return this._run(this.c.from(this.t).select(this.s).eq('herramienta_id', toolId).order('created_at', { ascending: false }))
   }

@@ -20,15 +20,18 @@ export const Modal = ({ title, onClose, children, className = 'max-w-lg' }) => (
 )
 export const Card = ({ children, className = '' }) => <div className={`rounded-lg border border-line bg-panel ${className}`}>{children}</div>
 
-export function NumberField({ label, value, onChange, min = 0, required = false }) {
-  const update = (next) => onChange(String(Math.max(min, Number(next) || 0)))
+export function NumberField({ label, value, onChange, min = 0, max = Number.POSITIVE_INFINITY, required = false }) {
+  const update = (next) => onChange(String(Math.min(max, Math.max(min, Number(next) || 0))))
   return (
     <Field label={label}>
       <div className="flex overflow-hidden rounded-md border border-line bg-bg focus-within:border-brand focus-within:ring-1 focus-within:ring-brand">
         <button type="button" aria-label={`Disminuir ${label}`} className="px-2 text-muted hover:text-white" onClick={() => update(Number(value || 0) - 1)}><Minus size={14} /></button>
         <input className="w-full min-w-0 bg-transparent px-1 py-2 text-center text-sm outline-none" type="text" inputMode="numeric"
           pattern="[0-9]*" required={required} value={value} onChange={(e) => {
-            if (/^\d*$/.test(e.target.value)) onChange(e.target.value)
+            if (/^\d*$/.test(e.target.value)) {
+              const next = e.target.value
+              onChange(next && Number(next) > max ? String(max) : next)
+            }
           }} />
         <button type="button" aria-label={`Aumentar ${label}`} className="px-2 text-muted hover:text-white" onClick={() => update(Number(value || 0) + 1)}><Plus size={14} /></button>
       </div>

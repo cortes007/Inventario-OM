@@ -1,4 +1,4 @@
-# OM Herramental · AcabadosOM SAS
+# OM Herramental · OM Construcciones y Acabados SAS
 
 ## Puesta en marcha
 1. Supabase → SQL Editor → pega y ejecuta `supabase/schema.sql`.

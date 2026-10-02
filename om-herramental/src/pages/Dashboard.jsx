@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Wrench } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { inventoryRealtimeService, movementService, toolService } from '../container'
+import { movementService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
+import { useInventoryRealtime } from '../hooks/useInventoryRealtime'
 import { Alert, Card } from '../components/ui'
 
 const METRICS = [
@@ -12,23 +12,10 @@ const METRICS = [
 ]
 
 export default function Dashboard() {
-  const refreshTimer = useRef(null)
-  const [realtimeError, setRealtimeError] = useState('')
   const { data: snapshot, loading, error, reload } = useResource(
     () => Promise.all([toolService.list(), movementService.outstandingByTool()]),
   )
-  useEffect(() => {
-    const unsubscribe = inventoryRealtimeService.subscribe(() => {
-      window.clearTimeout(refreshTimer.current)
-      refreshTimer.current = window.setTimeout(reload, 200)
-    }, (subscriptionError) => setRealtimeError(subscriptionError?.message || ''))
-    const fallbackRefresh = window.setInterval(reload, 30_000)
-    return () => {
-      unsubscribe()
-      window.clearInterval(fallbackRefresh)
-      window.clearTimeout(refreshTimer.current)
-    }
-  }, [reload])
+  const { connected, error: realtimeError } = useInventoryRealtime(reload)
   const [tools = [], movements = []] = snapshot || []
   const outstanding = movements
   const metrics = {
@@ -42,9 +29,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      <div><h2 className="text-xl font-semibold">Panel de inventario</h2><p className="text-sm text-muted">Actualización por cambios de inventario, con recarga de respaldo cada 30 segundos.</p></div>
+      <div><h2 className="text-xl font-semibold">Panel de inventario</h2><p className="text-sm text-muted">Actualización automática cuando cambia el inventario.</p></div>
       {error && <Alert>{error} <button type="button" className="ml-2 underline" onClick={reload}>Reintentar</button></Alert>}
-      {realtimeError && <p role="status" className="text-xs text-amber-400">{realtimeError}</p>}
+      {realtimeError
+        ? <p role="status" className="text-xs text-amber-400">Realtime no conectado ({realtimeError}). Actualizando cada 5 segundos.</p>
+        : connected && <p role="status" className="text-xs text-brand">Conectado a actualizaciones en tiempo real.</p>}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {METRICS.map(({ key, label, icon: Icon, color }) => <Card key={key} className="p-4">
           <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted">{label}</p><Icon size={18} className={color} /></div>

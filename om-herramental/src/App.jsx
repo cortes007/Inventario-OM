@@ -33,7 +33,7 @@ export default function App() {
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-panel md:flex">
         <div className="flex items-center gap-2 border-b border-line px-4 py-4">
           <Wrench className="shrink-0 text-brand" size={20} />
-          <div><p className="text-sm font-semibold leading-none">OM Herramental</p><p className="mt-1 text-xs text-muted">AcabadosOM SAS</p></div>
+          <div><p className="text-sm font-semibold leading-none">OM inventario</p><p className="mt-1 text-xs text-muted">OM Construcciones y Acabados SAS</p></div>
         </div>
         <nav className="flex-1 space-y-1 p-2">
           {NAV.map(({ id, label, icon: I }) => (
@@ -49,7 +49,7 @@ export default function App() {
       </aside>
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-line bg-panel px-4 py-3 md:hidden">
-          <div className="flex items-center gap-2"><Wrench className="text-brand" size={18} /><span className="text-sm font-semibold">OM Herramental</span></div>
+          <div className="flex items-center gap-2"><Wrench className="text-brand" size={18} /><span className="text-sm font-semibold">OM inventario</span></div>
           <button onClick={() => supabase.auth.signOut()} aria-label="Cerrar sesión" className="rounded-md p-2 text-muted hover:bg-line hover:text-white"><LogOut size={18} /></button>
         </header>
         <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:p-6 lg:p-8"><Page /></main>
