@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeftRight, FileBarChart, LogOut, Wrench } from 'lucide-react'
+import { ArrowLeftRight, FileBarChart, LayoutDashboard, LogOut, Wrench } from 'lucide-react'
 import { supabase, configured } from './lib/supabase'
 import Login from './components/Login'
+import Dashboard from './pages/Dashboard'
 import Tools from './pages/Tools'
 import Movements from './pages/Movements'
 import Reports from './pages/Reports'
 
 const NAV = [
+  { id: 'dashboard', label: 'Panel', icon: LayoutDashboard, page: Dashboard },
   { id: 'tools', label: 'Herramientas', icon: Wrench, page: Tools },
   { id: 'movs', label: 'Entradas y salidas', icon: ArrowLeftRight, page: Movements },
   { id: 'reports', label: 'Informes', icon: FileBarChart, page: Reports },
 ]
 
 export default function App() {
-  const [session, setSession] = useState(undefined); const [view, setView] = useState('tools')
+  const [session, setSession] = useState(undefined); const [view, setView] = useState('dashboard')
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))

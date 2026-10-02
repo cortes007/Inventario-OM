@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
 import { movementService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
-import { Alert, Badge, Button, Card, Field } from '../components/ui'
+import { Alert, Badge, Button, Card, Combobox, Field, NumberField } from '../components/ui'
 
 const EMPTY = { herramienta_id: '', tipo: 'SALIDA', cantidad: 1, responsable: '', destino: '', observacion: '' }
 
@@ -10,7 +10,7 @@ export default function Movements() {
   const tools = useResource(() => toolService.list())
   const hist = useResource(() => movementService.history())
   const [f, setF] = useState(EMPTY); const [err, setErr] = useState(''); const [ok, setOk] = useState('')
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === 'number' ? Number(e.target.value) : e.target.value })
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const selected = tools.data.find((t) => t.id === f.herramienta_id)
   const people = [...new Set(hist.data.map((m) => m.responsable))]
   const places = [...new Set(hist.data.map((m) => m.destino).filter(Boolean))]
@@ -34,11 +34,10 @@ export default function Movements() {
                 <button type="button" key={v} onClick={() => setF({ ...f, tipo: v })}
                   className={`flex items-center justify-center gap-2 rounded-md border py-2 text-sm ${f.tipo === v ? 'border-brand bg-emerald-950 text-brand' : 'border-line text-muted'}`}><I size={16} />{l}</button>))}
             </div>
-            <Field label="Herramienta"><select className="inp" required value={f.herramienta_id} onChange={set('herramienta_id')}>
-              <option value="">Seleccionar…</option>
-              {tools.data.filter((t) => t.estado !== 'BAJA').map((t) => <option key={t.id} value={t.id}>{t.codigo} · {t.nombre}</option>)}</select></Field>
+            <Combobox label="Herramienta" value={f.herramienta_id} onChange={(value) => setF({ ...f, herramienta_id: value })}
+              options={tools.data.filter((t) => t.estado !== 'BAJA').map((t) => ({ value: t.id, label: `${t.codigo} · ${t.nombre}` }))} required placeholder="Buscar herramienta…" />
             {selected && <p className="text-xs text-muted">Stock actual: <b className="text-zinc-200">{selected.stock_actual}</b></p>}
-            <Field label="Cantidad"><input className="inp" type="number" min="1" value={f.cantidad} onChange={set('cantidad')} /></Field>
+            <NumberField label="Cantidad" min={1} required value={String(f.cantidad)} onChange={(value) => setF({ ...f, cantidad: value })} />
             <Field label={f.tipo === 'SALIDA' ? 'Quién la recibe' : 'Quién la devuelve'}><input className="inp" list="people" required value={f.responsable} onChange={set('responsable')} /></Field>
             <Field label="Obra o destino"><input className="inp" list="places" value={f.destino} onChange={set('destino')} /></Field>
             <Field label="Observación (opcional)"><input className="inp" value={f.observacion} onChange={set('observacion')} /></Field>
@@ -52,13 +51,14 @@ export default function Movements() {
           <table className="w-full">
             <thead className="border-b border-line"><tr>{['Referencia', 'Fecha', 'Tipo', 'Herramienta', 'Cant.', 'Responsable', 'Destino'].map((h) => <th key={h} className="th">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-line">
-              {hist.data.slice(0, 50).map((m) => (
+              {hist.data.slice(0, 10).map((m) => (
                 <tr key={m.id}><td className="td font-mono text-brand">{m.codigo}</td><td className="td text-muted">{new Date(m.created_at).toLocaleString('es-CO')}</td>
                   <td className="td"><Badge v={m.tipo} /></td><td className="td">{m.herramientas?.nombre}</td><td className="td">{m.cantidad}</td>
                   <td className="td">{m.responsable}</td><td className="td text-muted">{m.destino || '—'}</td></tr>))}
               {!hist.loading && !hist.data.length && <tr><td colSpan={7} className="td py-10 text-center text-muted">Sin movimientos todavía. Registra el primero con el formulario.</td></tr>}
             </tbody>
           </table>
+          {!hist.loading && hist.data.length > 10 && <p className="border-t border-line px-4 py-3 text-xs text-muted">Mostrando los 10 movimientos más recientes.</p>}
         </Card>
       </div>
     </div>

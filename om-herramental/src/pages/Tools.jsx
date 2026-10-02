@@ -1,72 +1,185 @@
-import { useMemo, useState } from 'react'
-import { AlertTriangle, Pencil, Plus, Search, Trash2 } from 'lucide-react'
-import { toolService } from '../container'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Eye, Pencil, Plus, Search } from 'lucide-react'
+import { inventoryRealtimeService, movementService, toolDocumentService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
-import { Alert, Badge, Button, Card, Field, Modal } from '../components/ui'
+import { currentToolStatus, statusLabel } from '../utils/inventory'
+import { Alert, Badge, Button, Card, Combobox, Field, Modal, NumberField } from '../components/ui'
+import ToolDetail from '../components/ToolDetail'
+import ToolDocuments from '../components/ToolDocuments'
 
-const EMPTY = { nombre: '', categoria: 'General', ubicacion: '', stock_inicial: 0, stock_minimo: 0, estado: 'DISPONIBLE' }
+const EMPTY_FORM = (categories) => ({
+  codigo: `HER-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+  nombre: '',
+  categoria: categories[0] || 'General',
+  ubicacion: '',
+  stock_inicial: '0',
+  stock_minimo: '0',
+  estado: 'DISPONIBLE',
+})
+
+const FILTERS = [
+  ['DISPONIBLE', 'En bodega'],
+  ['EN_USO', 'En obra / prestadas'],
+  ['EN_REPARACION', 'En mantenimiento'],
+  ['BAJA', 'Dadas de baja'],
+]
 
 export default function Tools() {
+  const refreshTimer = useRef(null)
   const { data, loading, error, reload } = useResource(() => toolService.list())
-  const [q, setQ] = useState(''); const [form, setForm] = useState(null); const [err, setErr] = useState('')
-  const rows = useMemo(() => data.filter((t) => `${t.codigo} ${t.nombre} ${t.categoria}`.toLowerCase().includes(q.toLowerCase())), [data, q])
-  const low = data.filter((t) => t.estado !== 'BAJA' && t.stock_actual <= t.stock_minimo).length
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.type === 'number' ? Number(e.target.value) : e.target.value })
+  const { data: outstanding, error: loanError, reload: reloadOutstanding } = useResource(() => movementService.outstandingByTool())
+  const [q, setQ] = useState('')
+  const [statusFilter, setStatusFilter] = useState('TODOS')
+  const [form, setForm] = useState(null)
+  const [detail, setDetail] = useState(null)
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [err, setErr] = useState('')
+  const [realtimeError, setRealtimeError] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    const refresh = () => {
+      window.clearTimeout(refreshTimer.current)
+      refreshTimer.current = window.setTimeout(() => {
+        reload()
+        reloadOutstanding()
+      }, 200)
+    }
+    const unsubscribe = inventoryRealtimeService.subscribe(refresh, (subscriptionError) => setRealtimeError(subscriptionError?.message || ''))
+    const fallbackRefresh = window.setInterval(refresh, 30_000)
+    return () => {
+      unsubscribe()
+      window.clearInterval(fallbackRefresh)
+      window.clearTimeout(refreshTimer.current)
+    }
+  }, [reload, reloadOutstanding])
+  const categories = useMemo(() => [...new Set(data.map((tool) => tool.categoria).filter(Boolean))].sort(), [data])
+  const activeFilters = useMemo(() => FILTERS.filter(([status]) => {
+    if (status === 'EN_USO') return data.some((tool) => (outstanding[tool.id] || 0) > 0)
+    return data.some((tool) => currentToolStatus(tool, outstanding[tool.id]) === status)
+  }), [data, outstanding])
+  const rows = useMemo(() => data.filter((tool) => {
+    const matchesSearch = `${tool.codigo} ${tool.nombre} ${tool.categoria} ${tool.ubicacion || ''}`.toLowerCase().includes(q.trim().toLowerCase())
+    const status = currentToolStatus(tool, outstanding[tool.id] || 0)
+    const matchesStatus = statusFilter === 'TODOS'
+      || (statusFilter === 'EN_USO' ? (outstanding[tool.id] || 0) > 0 : status === statusFilter)
+    return matchesSearch && matchesStatus
+  }), [data, q, statusFilter, outstanding])
+  const low = data.filter((tool) => tool.estado !== 'BAJA' && tool.stock_actual <= tool.stock_minimo).length
 
-  const save = async (e) => {
-    e.preventDefault(); setErr('')
-    try { form.id ? await toolService.update(form.id, form) : await toolService.create(form); setForm(null); reload() }
-    catch (x) { setErr(x.message) }
+  const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }))
+  const openNewForm = () => {
+    setErr('')
+    setPendingFiles([])
+    setForm(EMPTY_FORM(categories))
   }
-  const del = async (t) => {
-    if (!confirm(`¿Eliminar ${t.codigo} · ${t.nombre}?`)) return
-    try { await toolService.remove(t.id); reload() } catch { alert('Tiene movimientos registrados. Márcala como "baja" en lugar de eliminarla.') }
+  const closeForm = () => {
+    setForm(null)
+    setPendingFiles([])
+    setErr('')
   }
-
+  const save = async (event) => {
+    event.preventDefault()
+    setErr('')
+    setSaving(true)
+    const values = { ...form, stock_minimo: Number(form.stock_minimo), stock_inicial: Number(form.stock_inicial) }
+    try {
+      const savedTool = form.id
+        ? await toolService.update(form.id, values)
+        : await toolService.create(values)
+      if (pendingFiles.length) {
+        setForm({ ...savedTool, stock_inicial: '0', stock_minimo: String(savedTool.stock_minimo) })
+        const failedFiles = []
+        for (const pending of pendingFiles) {
+          try {
+            await toolDocumentService.upload(savedTool.id, pending.file)
+          } catch (uploadError) {
+            failedFiles.push({ ...pending, error: uploadError.message })
+          }
+        }
+        setPendingFiles(failedFiles)
+        if (failedFiles.length) {
+          setErr(`La herramienta quedó guardada, pero no se pudieron subir todos los documentos: ${failedFiles.map((item) => `${item.file.name} (${item.error})`).join('; ')}. Puedes volver a guardar para reintentarlo.`)
+          await reload()
+          return
+        }
+      }
+      setForm(null)
+      setPendingFiles([])
+      await reload()
+    } catch (saveError) {
+      setErr(saveError.message)
+    } finally {
+      setSaving(false)
+    }
+  }
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h2 className="text-xl font-semibold">Herramientas</h2>
-          <p className="text-sm text-muted">{data.length} registradas{low > 0 && <span className="ml-2 inline-flex items-center gap-1 text-amber-400"><AlertTriangle size={14} />{low} con stock bajo</span>}</p></div>
-        <Button onClick={() => { setErr(''); setForm(EMPTY) }}><Plus size={16} />Nueva herramienta</Button>
+          <p className="text-sm text-muted">{data.length} registradas{low > 0 && <span className="ml-2 text-amber-400">{low} con stock bajo</span>}</p></div>
+        <Button onClick={openNewForm}><Plus size={16} />Nueva herramienta</Button>
       </div>
-      <div className="relative max-w-sm"><Search size={16} className="absolute left-3 top-2.5 text-muted" />
-        <input className="inp pl-9" placeholder="Buscar por código, nombre o categoría" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-      <Alert>{error}</Alert>
+      <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_auto] lg:items-center">
+        <div className="relative min-w-0">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input className="inp" style={{ paddingLeft: '2.5rem' }} placeholder="Buscar por código, nombre, categoría o ubicación" value={q} onChange={(event) => setQ(event.target.value)} />
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+          <button type="button" onClick={() => setStatusFilter('TODOS')}
+            className={`rounded-md border px-3 py-2 text-xs ${statusFilter === 'TODOS' ? 'border-brand text-brand' : 'border-line text-muted hover:text-white'}`}>Todos</button>
+          {activeFilters.map(([status, label]) => <button type="button" key={status} onClick={() => setStatusFilter(status)}
+            className={`rounded-md border px-3 py-2 text-xs ${statusFilter === status ? 'border-brand text-brand' : 'border-line text-muted hover:text-white'}`}>{label}</button>)}
+        </div>
+      </div>
+      <Alert>{error || loanError || err}</Alert>
+      {realtimeError && <p role="status" className="text-xs text-amber-400">{realtimeError}</p>}
       <Card className="overflow-x-auto">
         <table className="w-full">
-          <thead className="border-b border-line"><tr>{['Código', 'Nombre', 'Categoría', 'Ubicación', 'Stock', 'Estado', ''].map((h) => <th key={h} className="th">{h}</th>)}</tr></thead>
+          <thead className="border-b border-line"><tr>{['Código de activo', 'Nombre', 'Categoría', 'Ubicación', 'En bodega', 'Estado', ''].map((heading) => <th key={heading} className="th whitespace-nowrap">{heading}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">
-            {rows.map((t) => (
-              <tr key={t.id} className="hover:bg-white/[0.02]">
-                <td className="td font-mono text-brand">{t.codigo}</td><td className="td">{t.nombre}</td><td className="td text-muted">{t.categoria}</td>
-                <td className="td text-muted">{t.ubicacion || '—'}</td>
-                <td className={`td ${t.stock_actual <= t.stock_minimo ? 'text-amber-400' : ''}`}>{t.stock_actual}</td>
-                <td className="td"><Badge v={t.estado} /></td>
-                <td className="td text-right"><button aria-label="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setForm(t) }}><Pencil size={16} /></button>
-                  <button aria-label="Eliminar" className="p-1 text-muted hover:text-red-400" onClick={() => del(t)}><Trash2 size={16} /></button></td>
-              </tr>))}
-            {!loading && !rows.length && <tr><td colSpan={7} className="td py-10 text-center text-muted">Aún no hay herramientas. Crea la primera con “Nueva herramienta”.</td></tr>}
+            {rows.map((tool) => {
+              const loaned = outstanding[tool.id] || 0
+              const status = currentToolStatus(tool, loaned)
+              const partlyInUse = tool.estado === 'DISPONIBLE' && tool.stock_actual > 0 && loaned > 0
+              return <tr key={tool.id} className="hover:bg-white/[0.02]">
+                <td className="td whitespace-nowrap font-mono text-brand">{tool.codigo}</td><td className="td">{tool.nombre}</td><td className="td text-muted">{tool.categoria}</td>
+                <td className="td text-muted">{tool.ubicacion || '—'}</td>
+                <td className={`td ${tool.stock_actual <= tool.stock_minimo ? 'text-amber-400' : ''}`}>{tool.stock_actual}</td>
+                <td className="td whitespace-nowrap"><Badge v={status} />{partlyInUse && <Badge v="EN_USO" />}<span className="sr-only">{statusLabel(status)}{partlyInUse ? `; ${statusLabel('EN_USO')}` : ''}</span></td>
+                <td className="td whitespace-nowrap text-right">
+                  <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="p-1 text-muted hover:text-white" onClick={() => setDetail(tool)}><Eye size={16} /></button>
+                  <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '0', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={16} /></button>
+                </td>
+              </tr>
+            })}
+            {!loading && !rows.length && <tr><td colSpan={7} className="td py-10 text-center text-muted">{data.length ? 'No hay herramientas que coincidan con esos filtros.' : 'Aún no hay herramientas. Crea la primera con “Nueva herramienta”.'}</td></tr>}
           </tbody>
         </table>
       </Card>
-      {form && (
-        <Modal title={form.id ? `Editar ${form.codigo}` : 'Nueva herramienta'} onClose={() => setForm(null)}>
-          <form onSubmit={save} className="space-y-3">
-            <Field label="Nombre"><input className="inp" required value={form.nombre} onChange={set('nombre')} /></Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Categoría"><input className="inp" value={form.categoria} onChange={set('categoria')} /></Field>
-              <Field label="Ubicación"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
-              {!form.id && <Field label="Cantidad inicial"><input className="inp" type="number" min="0" value={form.stock_inicial} onChange={set('stock_inicial')} /></Field>}
-              <Field label="Stock mínimo"><input className="inp" type="number" min="0" value={form.stock_minimo} onChange={set('stock_minimo')} /></Field>
-              <Field label="Estado"><select className="inp" value={form.estado} onChange={set('estado')}>
-                <option value="DISPONIBLE">Disponible</option><option value="EN_REPARACION">En reparación</option><option value="BAJA">Baja</option></select></Field>
-            </div>
-            {!form.id && <p className="text-xs text-muted">El código (HER-0001…) se genera automáticamente.</p>}
-            <Alert>{err}</Alert>
-            <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setForm(null)}>Cancelar</Button><Button>Guardar</Button></div>
-          </form>
-        </Modal>)}
+      {form && <Modal title={form.id ? `Editar ${form.codigo}` : 'Nueva herramienta'} onClose={closeForm}>
+        <form onSubmit={save} className="space-y-3">
+          <Field label="ID único / código de activo"><input className="inp font-mono" required maxLength={100} value={form.codigo} onChange={set('codigo')} /></Field>
+          <Field label="Nombre"><input className="inp" required value={form.nombre} onChange={set('nombre')} /></Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Combobox label="Categoría" value={form.categoria} options={categories} onChange={(value) => setForm({ ...form, categoria: value })} allowCustom placeholder="Buscar o escribir categoría" required />
+            <Field label="Ubicación"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
+            {!form.id && <NumberField label="Cantidad inicial" value={form.stock_inicial} onChange={(value) => setForm({ ...form, stock_inicial: value })} />}
+            <NumberField label="Stock mínimo" value={form.stock_minimo} onChange={(value) => setForm({ ...form, stock_minimo: value })} required />
+            <Field label="Condición"><select className="inp" value={form.estado} onChange={set('estado')}>
+              <option value="DISPONIBLE">Disponible</option>{form.estado === 'EN_USO' && <option value="EN_USO">En uso</option>}<option value="EN_REPARACION">En mantenimiento</option><option value="BAJA">Dado de baja</option>
+            </select></Field>
+          </div>
+          <ToolDocuments
+            toolId={form.id}
+            pendingFiles={pendingFiles}
+            onPendingFilesChange={setPendingFiles}
+          />
+          {!form.id && <p className="text-xs text-muted">Se generó un código único editable. Las unidades iniciales se registrarán como movimiento.</p>}
+          <Alert>{err}</Alert>
+          <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={closeForm}>Cancelar</Button><Button disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</Button></div>
+        </form>
+      </Modal>}
+      {detail && <ToolDetail tool={detail} onClose={() => setDetail(null)} />}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 node_modules/
 dist/
 
-# Variables de entorno (NUNCA subir llaves)
+# Variables de entorno 
 .env
 .env.*
 !.env.example
