@@ -12,7 +12,7 @@ const METRICS = [
 ]
 
 export default function Dashboard() {
-  const { data: snapshot, loading, error, reload } = useResource(
+  const { data: snapshot, initialLoading, isRefreshing, error, reload } = useResource(
     () => Promise.all([toolService.list(), movementService.outstandingByTool()]),
   )
   const { connected, error: realtimeError } = useInventoryRealtime(reload)
@@ -37,7 +37,7 @@ export default function Dashboard() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {METRICS.map(({ key, label, icon: Icon, color }) => <Card key={key} className="p-4">
           <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted">{label}</p><Icon size={18} className={color} /></div>
-          <p className={`mt-2 text-3xl font-semibold ${color}`}>{loading && !snapshot.length ? '—' : metrics[key]}</p>
+          <p className={`mt-2 text-3xl font-semibold ${color}`}>{initialLoading ? '—' : metrics[key]}</p>
           <p className="mt-1 text-xs text-muted">{key === 'low' ? 'herramientas activas bajo su mínimo' : key === 'repair' ? 'herramientas en reparación' : 'unidades'}</p>
         </Card>)}
       </div>
@@ -49,7 +49,7 @@ export default function Dashboard() {
             <div><p className="text-sm font-medium">{tool.nombre}</p><p className="text-xs text-muted">{tool.codigo} · {tool.categoria}</p></div>
             <p className="text-sm text-amber-400">{tool.stock_actual} disponibles <span className="text-muted">/ mínimo {tool.stock_minimo}</span></p>
           </div>)}
-          {!loading && !lowTools.length && <p className="py-5 text-center text-sm text-muted">No hay alertas de stock bajo.</p>}
+          {!initialLoading && !lowTools.length && <p className="py-5 text-center text-sm text-muted">No hay alertas de stock bajo.</p>}
         </div>
       </Card>
     </div>

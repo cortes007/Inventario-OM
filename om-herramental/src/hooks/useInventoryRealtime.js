@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { inventoryRealtimeService } from '../container'
 
-const REFRESH_INTERVAL = 5000
+const REFRESH_INTERVAL = 30000
 
 export function useInventoryRealtime(reload) {
   const [status, setStatus] = useState('CONNECTING')
