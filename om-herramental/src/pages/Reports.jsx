@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Download, FileSpreadsheet, FileText } from 'lucide-react'
+import { FileSpreadsheet, FileText, Sparkles } from 'lucide-react'
 import { movementService, reportService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
-import { download, toCSV } from '../utils/csv'
+
 import { Alert, Badge, Button, Card, Field } from '../components/ui'
 
 const iso = (d) => d.toISOString().slice(0, 10)
@@ -13,6 +13,8 @@ export default function Reports() {
   const { data, loading, error } = useResource(() => reportService.movements(flt), [flt])
   const [exportError, setExportError] = useState('')
   const [exporting, setExporting] = useState(false)
+  const [analisisIA, setAnalisisIA] = useState('')
+  const [cargandoIA, setCargandoIA] = useState(false)
   const s = reportService.summary(data)
   const set = (k) => (e) => setFlt({ ...flt, [k]: e.target.value })
   const inventoryRows = async () => {
@@ -30,7 +32,7 @@ export default function Reports() {
       } else if (format === 'pdf') {
         const { exportPdf } = await import('../utils/pdf')
         exportPdf(rows, `inventario_${iso(now)}.pdf`, 'Inventario actual de herramientas')
-      } else download(toCSV(rows), `inventario_${iso(now)}.csv`)
+      }
     } catch (exportFailure) {
       setExportError(exportFailure.message)
     } finally {
@@ -50,6 +52,44 @@ export default function Reports() {
       setExporting(false)
     }
   }
+  const analizarMovimientos = async () => {
+    setExportError('')
+    setCargandoIA(true)
+    setAnalisisIA('')
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+      const response = await fetch(`${apiBaseUrl}/api/analizar-movimientos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fechaDesde: flt.desde,
+          fechaHasta: flt.hasta,
+          totalMovimientos: s.total,
+          totalEntradas: s.entradas,
+          totalSalidas: s.salidas,
+          datosTabla: data,
+        }),
+      })
+      const responseText = await response.text()
+      let result
+      try {
+        result = responseText ? JSON.parse(responseText) : {}
+      } catch {
+        throw new Error(`El backend devolvió una respuesta no válida (HTTP ${response.status}). Verifica que el servicio de análisis esté activo.`)
+      }
+      if (!response.ok) throw new Error(result.error || 'Error desconocido')
+      if (typeof result.analisis !== 'string' || !result.analisis.trim()) {
+        throw new Error('El backend no devolvió un análisis. Revisa los logs del backend.')
+      }
+      setAnalisisIA(result.analisis)
+    } catch (err) {
+      setExportError(err instanceof TypeError
+        ? 'No se pudo conectar con el backend de análisis. Inícialo y verifica que esté disponible.'
+        : err.message)
+    } finally {
+      setCargandoIA(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -58,16 +98,27 @@ export default function Reports() {
         <div className="flex min-w-0 flex-wrap gap-2">
           <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('xlsx')}><FileSpreadsheet size={16} />Inventario XLSX</Button>
           <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('pdf')}><FileText size={16} />Inventario PDF</Button>
-          <Button variant="ghost" disabled={exporting} onClick={() => exportInventory('csv')}><Download size={16} />Inventario CSV</Button>
         </div>
       </div>
       <Card className="grid min-w-0 grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[repeat(3,minmax(150px,1fr))_auto] xl:items-end">
         <Field label="Desde"><input type="date" className="inp min-w-0" value={flt.desde} onChange={set('desde')} /></Field>
         <Field label="Hasta"><input type="date" className="inp min-w-0" value={flt.hasta} onChange={set('hasta')} /></Field>
         <Field label="Tipo"><select className="inp min-w-0" value={flt.tipo} onChange={set('tipo')}><option value="">Todos</option><option value="ENTRADA">Entradas</option><option value="SALIDA">Salidas</option></select></Field>
-        <Button className="w-full justify-center sm:col-span-2 xl:col-span-1" disabled={loading || exporting || !data.length} onClick={exportMovements}><FileSpreadsheet size={16} />Movimientos Excel</Button>
+        <Button className="w-full justify-center sm:col-span-2 xl:col-span-1" disabled={loading || exporting || cargandoIA || !data.length} onClick={analizarMovimientos}><Sparkles size={16} />{cargandoIA ? 'Analizando...' : 'Analizar Movimientos con IA'}</Button>
       </Card>
       <Alert>{exportError}</Alert>
+      {analisisIA && (
+        <Card className="border-brand/30 bg-brand/5 p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles size={18} className="text-brand" />
+            <h3 className="font-semibold text-brand">Resumen Ejecutivo — Análisis con IA</h3>
+          </div>
+          <p className="whitespace-pre-line text-sm leading-relaxed">{analisisIA}</p>
+          <div className="mt-4 border-t border-brand/20 pt-3">
+            <Button variant="ghost" className="text-xs" disabled={exporting} onClick={exportMovements}><FileSpreadsheet size={14} />Exportar a Excel</Button>
+          </div>
+        </Card>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[['Movimientos', s.total], ['Unidades que entraron', s.entradas], ['Unidades que salieron', s.salidas]].map(([l, v]) => (
           <Card key={l} className="p-4"><p className="text-xs text-muted">{l}</p><p className="mt-1 text-2xl font-semibold">{v}</p></Card>))}

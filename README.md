@@ -17,7 +17,7 @@ Sistema de inventario y control de herramientas de **OM Construcciones y Acabado
 
 ## Tecnologías
 
-React 18 · Vite · Tailwind CSS 3 · Lucide React · Supabase (PostgreSQL, Auth, PostgREST, RLS)
+React 18 · Vite · Tailwind CSS 3 · Lucide React · Node.js/Express · Groq · Supabase (PostgreSQL, Auth, PostgREST, RLS)
 
 ## Arquitectura
 
@@ -65,10 +65,21 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
    VITE_SUPABASE_URL=https://<tu-proyecto>.supabase.co
    VITE_SUPABASE_ANON_KEY=<clave anon o publishable>
    ```
-5. Inicia la aplicación:
+5. Configura el backend de análisis con Groq:
+   ```bash
+   cd ../backend
+   npm install
+   ```
+   Copia `.env.example` a `.env`, agrega tu clave de Groq y confirma que el modelo configurado siga disponible en GroqCloud. Inicia el backend en una terminal:
    ```bash
    npm run dev
    ```
+6. En otra terminal, inicia la aplicación frontend:
+   ```bash
+   cd ../om-herramental
+   npm run dev
+   ```
+   En desarrollo, Vite reenvía las solicitudes `/api` a `http://localhost:3002`. Para desplegar el frontend por separado, configura `VITE_API_URL` con la URL base pública del backend; el backend también debe estar desplegado y accesible por HTTPS.
 
 ## Scripts
 

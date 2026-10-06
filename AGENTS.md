@@ -50,7 +50,7 @@ Todas las contribuciones, modificaciones de código y nuevas funcionalidades deb
 ## 4. Gestión y Ciclo de Vida del Archivo `MEMORY.md`
 
 * **Creación y Actualización Obligatoria:**
-  * Cada vez que se realice un **cambio importante** en el proyecto (cambios estructurales mayores, modificaciones de arquitectura, adición de nuevas tecnologías o refactorizaciones de capas), se debe actualizar el archivo `MEMORY.md` ubicado en la raíz del repositorio.
+  * Lee  `MEMORY.md`. Cada vez que se realice un **cambio importante** en el proyecto (cambios estructurales mayores, modificaciones de arquitectura, adición de nuevas tecnologías o refactorizaciones de capas), se debe actualizar el archivo `MEMORY.md` ubicado en la raíz del repositorio.
   * Si el archivo `MEMORY.md` no existe en la raíz, debe crearse tras un cambio estructural significativo.
 * **Limpieza y Mantenimiento de `MEMORY.md`:**
   * Si el archivo `MEMORY.md` se encuentra desactualizado respecto al estado actual del programa, **debe ser actualizado, resumido y depurado**, eliminando toda información obsoleta, datos temporales o detalles que ya no apliquen al estado actual del software.
