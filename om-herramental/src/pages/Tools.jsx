@@ -9,6 +9,8 @@ import ToolDetail from '../components/ToolDetail'
 import ToolDocuments from '../components/ToolDocuments'
 import { createAssetCode } from '../utils/id'
 
+const DEFAULT_CATEGORIES = ['General', 'Eléctrica', 'Seguridad', 'Medición']
+
 const EMPTY_FORM = (categories) => ({
   codigo: createAssetCode(),
   nombre: '',
@@ -40,7 +42,18 @@ export default function Tools() {
     await Promise.all([reload(), reloadOutstanding()])
   }, [reload, reloadOutstanding])
   const { error: realtimeError } = useInventoryRealtime(refreshInventory)
-  const categories = useMemo(() => [...new Set(data.map((tool) => tool.categoria).filter(Boolean))].sort(), [data])
+  const categories = useMemo(() => {
+    const fromData = [...new Set(data.map((tool) => tool.categoria).filter(Boolean))]
+    const merged = [...new Set([...DEFAULT_CATEGORIES, ...fromData])]
+    return merged.sort((a, b) => {
+      const aIndex = DEFAULT_CATEGORIES.indexOf(a)
+      const bIndex = DEFAULT_CATEGORIES.indexOf(b)
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+      if (aIndex !== -1) return -1
+      if (bIndex !== -1) return 1
+      return a.localeCompare(b)
+    })
+  }, [data])
   const activeFilters = useMemo(() => FILTERS.filter(([status]) => {
     if (status === 'EN_USO') return data.some((tool) => (outstanding[tool.id] || 0) > 0)
     return data.some((tool) => currentToolStatus(tool, outstanding[tool.id]) === status)
