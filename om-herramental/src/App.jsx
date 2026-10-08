@@ -52,7 +52,7 @@ export default function App() {
           <div className="flex items-center gap-2"><Wrench className="text-brand" size={18} /><span className="text-sm font-semibold">OM inventario</span></div>
           <button onClick={() => supabase.auth.signOut()} aria-label="Cerrar sesión" className="rounded-md p-2 text-muted hover:bg-line hover:text-white"><LogOut size={18} /></button>
         </header>
-        <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:p-6 lg:p-8"><Page /></main>
+        <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:p-6 lg:p-8"><Page onNavigate={setView} /></main>
       </div>
       <nav aria-label="Navegación principal" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-panel/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(0,0,0,0.25)] backdrop-blur md:hidden">
         {NAV.map(({ id, label, icon: I }) => (

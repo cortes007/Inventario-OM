@@ -4,20 +4,20 @@ Sistema de inventario y control de herramientas de **OM Construcciones y Acabado
 
 ## Funcionalidades
 
-- **Dashboard** en tiempo real con unidades en bodega, préstamos pendientes, alertas de bajo stock y herramientas en mantenimiento.
+- **Panel de activos** en tiempo real con total de activos, disponibilidad por estado y últimos movimientos registrados.
 - **CRUD de herramientas** con código de activo autogenerado y editable, búsqueda y filtros dinámicos por estado.
-- **Activos individuales:** cada herramienta nueva se registra como una unidad (cantidad 1) para conservar una ficha y documentación propias.
+- **Activos individuales:** cada herramienta se registra como una unidad, con código único, condición, ubicación actual, hoja de vida e historial propios.
 - **Detalle de herramienta** con historial de movimientos/cambios de estado y documentos en almacenamiento privado; también permite preadjuntar archivos al crear una herramienta.
-- **Entradas y salidas** con responsable y obra sugeridos; permite entregar varias herramientas a una persona en una sola operación atómica.
-- **Informes** filtrados por rango de fechas y tipo; la tabla completa tiene desplazamiento interno para evitar desbordamiento y el resultado filtrado se puede exportar a Excel XLSX, incluyendo referencia, fecha, tipo, código de activo, herramienta, cantidad, responsable, destino y observación.
-- **Códigos automáticos**: `HER-0001` para herramientas y `MOV-000001` para movimientos; fecha y usuario se asignan solos.
-- **Stock automático**: un trigger en la base de datos actualiza el stock y rechaza salidas mayores al disponible.
+- **Entradas y salidas** de activos individuales con responsable y nueva ubicación obligatoria; actualiza la condición y ubicación actual del activo automáticamente.
+- **Informes** filtrados por rango de fechas y tipo; la tabla completa tiene desplazamiento interno para evitar desbordamiento y el resultado filtrado se puede exportar a Excel XLSX, incluyendo referencia, fecha, tipo, código de activo, herramienta, responsable, ubicación y observación.
+- **Códigos automáticos**: `HER-0001` para activos y `MOV-000001` para movimientos; fecha y usuario se asignan solos.
+- **Movimientos atómicos**: cada movimiento corresponde a un activo físico y la base valida la unidad, ubicación y condición.
 - **Historial inmutable**: los movimientos no se editan ni se eliminan, lo que sirve de auditoría.
 - **Autenticación** con Supabase Auth.
 
 ## Tecnologías
 
-React 18 · Vite · Tailwind CSS 3 · Lucide React · Node.js/Express · Groq · Supabase (PostgreSQL, Auth, PostgREST, RLS)
+React 18 · Vite · Tailwind CSS 3 · Lucide React · Funciones serverless de Vercel · Groq · Supabase (PostgreSQL, Auth, PostgREST, RLS)
 
 ## Arquitectura
 
@@ -58,34 +58,25 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
    cd Inventario-OM/om-herramental
    npm install
    ```
-2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica todas las migraciones de `supabase/migrations/` en orden, incluida `20261002040000_atomic_multi_tool_returns.sql` para habilitar devoluciones de varias herramientas en una operación. En Supabase → **Database → Replication**, confirma que `herramientas` y `movimientos` estén habilitadas para Realtime. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
+2. En Supabase → **SQL Editor**, ejecuta `supabase/schema.sql` para una instalación nueva. En una instalación existente, aplica las migraciones de `supabase/migrations/` en orden, incluida `20261007000000_individual_asset_movements.sql` para validar movimientos de una sola unidad y sincronizar condición y ubicación. En Supabase → **Database → Replication**, confirma que `herramientas` y `movimientos` estén habilitadas para Realtime. Ejecuta `supabase/seed_inventario.sql` solo si quieres cargar los datos iniciales.
 3. En Supabase → **Authentication → Users**, crea un usuario (marca *Auto Confirm User*).
 4. Copia `.env.example` a `.env` y completa los valores (Project Settings → API):
    ```dotenv
    VITE_SUPABASE_URL=https://<tu-proyecto>.supabase.co
    VITE_SUPABASE_ANON_KEY=<clave anon o publishable>
    ```
-5. Configura el backend de análisis con Groq:
+5. Para desarrollar localmente la aplicación completa (frontend y función API) desde una sola terminal, ejecuta desde `om-herramental`:
    ```bash
-   cd ../backend
    npm install
-   ```
-   Copia `.env.example` a `.env`, agrega tu clave de Groq y confirma que el modelo configurado siga disponible en GroqCloud. Inicia el backend en una terminal:
-   ```bash
    npm run dev
    ```
-6. En otra terminal, inicia la aplicación frontend:
-   ```bash
-   cd ../om-herramental
-   npm run dev
-   ```
-   En desarrollo, Vite reenvía las solicitudes `/api` a `http://localhost:3002`. Para desplegar el frontend por separado, configura `VITE_API_URL` con la URL base pública del backend; el backend también debe estar desplegado y accesible por HTTPS.
+   El comando inicia la web y la ruta local `/api/analizar` en el mismo servidor. Carga automáticamente `GROQ_API_KEY` y `GROQ_MODEL` desde `backend/.env` si ese archivo existe; también puedes definirlos en `om-herramental/.env.local`. No necesitas iniciar el Express antiguo de `backend/`. En Vercel, la misma lógica se sirve como función serverless; configura sus variables en **Project Settings → Environment Variables**.
 
 ## Scripts
 
 | Comando | Descripción |
 | --- | --- |
-| `npm run dev` | Servidor de desarrollo |
+| `npm run dev` | Aplicación completa local, incluida la ruta de análisis con IA |
 | `npm run build` | Compilación de producción en `dist/` |
 | `npm run preview` | Vista previa de la compilación |
 
@@ -100,7 +91,7 @@ Requisitos: Node.js 18 o superior y un proyecto en [Supabase](https://supabase.c
 
 ## Despliegue
 
-El proyecto genera archivos estáticos (`npm run build`), así que se puede publicar en Vercel, Netlify o Cloudflare Pages. Configura allí las dos variables `VITE_SUPABASE_*` y vuelve a desplegar después de cambiarlas. Si el WebSocket de Realtime está bloqueado, el inventario se vuelve a consultar automáticamente cada 5 segundos.
+Despliega el repositorio como un único proyecto en Vercel y configura **Root Directory** como `om-herramental`. Vercel compila el frontend con `npm run build` y publica `api/analizar.js` como `/api/analizar` en el mismo dominio. Configura `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `GROQ_API_KEY` y, opcionalmente, `GROQ_MODEL` en **Project Settings → Environment Variables**. No configures `GROQ_API_KEY` con prefijo `VITE_`: debe permanecer solo en el entorno serverless. Si el WebSocket de Realtime está bloqueado, el inventario se vuelve a consultar automáticamente cada 5 segundos.
 
 ## Equipo
 

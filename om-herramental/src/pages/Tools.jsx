@@ -4,7 +4,7 @@ import { movementService, toolDocumentService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
 import { useInventoryRealtime } from '../hooks/useInventoryRealtime'
 import { currentToolStatus, statusLabel } from '../utils/inventory'
-import { Alert, Badge, Button, Card, Combobox, Field, Modal, NumberField } from '../components/ui'
+import { Alert, Badge, Button, Card, Combobox, Field, Modal } from '../components/ui'
 import ToolDetail from '../components/ToolDetail'
 import ToolDocuments from '../components/ToolDocuments'
 import { createAssetCode } from '../utils/id'
@@ -16,20 +16,18 @@ const EMPTY_FORM = (categories) => ({
   nombre: '',
   categoria: categories[0] || 'General',
   ubicacion: '',
-  stock_inicial: '1',
-  stock_minimo: '0',
   estado: 'DISPONIBLE',
 })
 
 const FILTERS = [
-  ['DISPONIBLE', 'En bodega'],
-  ['EN_USO', 'En obra / prestadas'],
-  ['EN_REPARACION', 'En mantenimiento'],
-  ['BAJA', 'Dadas de baja'],
+  ['DISPONIBLE', 'Disponible'],
+  ['EN_USO', 'En uso'],
+  ['EN_REPARACION', 'En reparación'],
+  ['BAJA', 'Dada de baja'],
 ]
 
 export default function Tools() {
-  const { data, loading, error, reload } = useResource(() => toolService.list())
+  const { data, initialLoading: loading, error, reload } = useResource(() => toolService.list())
   const { data: outstanding, error: loanError, reload: reloadOutstanding } = useResource(() => movementService.outstandingByTool())
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState('TODOS')
@@ -55,18 +53,14 @@ export default function Tools() {
     })
   }, [data])
   const activeFilters = useMemo(() => FILTERS.filter(([status]) => {
-    if (status === 'EN_USO') return data.some((tool) => (outstanding[tool.id] || 0) > 0)
-    return data.some((tool) => currentToolStatus(tool, outstanding[tool.id]) === status)
+    return data.some((tool) => currentToolStatus(tool, outstanding[tool.id] || 0) === status)
   }), [data, outstanding])
   const rows = useMemo(() => data.filter((tool) => {
     const matchesSearch = `${tool.codigo} ${tool.nombre} ${tool.categoria} ${tool.ubicacion || ''}`.toLowerCase().includes(q.trim().toLowerCase())
     const status = currentToolStatus(tool, outstanding[tool.id] || 0)
-    const matchesStatus = statusFilter === 'TODOS'
-      || (statusFilter === 'EN_USO' ? (outstanding[tool.id] || 0) > 0 : status === statusFilter)
+    const matchesStatus = statusFilter === 'TODOS' || status === statusFilter
     return matchesSearch && matchesStatus
   }), [data, q, statusFilter, outstanding])
-  const low = data.filter((tool) => tool.estado !== 'BAJA' && tool.stock_actual <= tool.stock_minimo).length
-
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }))
   const openNewForm = () => {
     setErr('')
@@ -82,13 +76,13 @@ export default function Tools() {
     event.preventDefault()
     setErr('')
     setSaving(true)
-    const values = { ...form, stock_minimo: Number(form.stock_minimo), stock_inicial: Number(form.stock_inicial) }
+    const values = form
     try {
       const savedTool = form.id
         ? await toolService.update(form.id, values)
         : await toolService.create(values)
       if (pendingFiles.length) {
-        setForm({ ...savedTool, stock_inicial: '1', stock_minimo: String(savedTool.stock_minimo) })
+        setForm(savedTool)
         const failedFiles = []
         for (const pending of pendingFiles) {
           try {
@@ -117,7 +111,7 @@ export default function Tools() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><h2 className="text-xl font-semibold">Herramientas</h2>
-          <p className="text-sm text-muted">{data.length} registradas{low > 0 && <span className="ml-2 text-amber-400">{low} con stock bajo</span>}</p></div>
+          <p className="text-sm text-muted">{data.length} activos registrados</p></div>
         <Button className="shrink-0" onClick={openNewForm}><Plus size={16} />Nueva herramienta</Button>
       </div>
       <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(240px,1fr)_auto] xl:items-center">
@@ -137,24 +131,22 @@ export default function Tools() {
       <div className="hidden min-w-0 md:block">
         <Card className="min-w-0 overflow-x-auto">
         <table className="w-full min-w-[760px]">
-          <thead className="border-b border-line"><tr>{['Código de activo', 'Nombre', 'Categoría', 'Ubicación', 'En bodega', 'Estado', ''].map((heading) => <th key={heading} className="th whitespace-nowrap">{heading}</th>)}</tr></thead>
+          <thead className="border-b border-line"><tr>{['Código de activo', 'Nombre', 'Categoría', 'Ubicación actual', 'Estado', 'Acciones'].map((heading) => <th key={heading} className="th whitespace-nowrap">{heading}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">
             {rows.map((tool) => {
               const loaned = outstanding[tool.id] || 0
               const status = currentToolStatus(tool, loaned)
-              const partlyInUse = tool.estado === 'DISPONIBLE' && tool.stock_actual > 0 && loaned > 0
               return <tr key={tool.id} className="hover:bg-white/[0.02]">
                 <td className="td whitespace-nowrap font-mono text-brand">{tool.codigo}</td><td className="td">{tool.nombre}</td><td className="td text-muted">{tool.categoria}</td>
                 <td className="td text-muted">{tool.ubicacion || '—'}</td>
-                <td className={`td ${tool.stock_actual <= tool.stock_minimo ? 'text-amber-400' : ''}`}>{tool.stock_actual}</td>
-                <td className="td whitespace-nowrap"><Badge v={status} />{partlyInUse && <Badge v="EN_USO" />}<span className="sr-only">{statusLabel(status)}{partlyInUse ? `; ${statusLabel('EN_USO')}` : ''}</span></td>
+                <td className="td whitespace-nowrap"><Badge v={status} /><span className="sr-only">{statusLabel(status)}</span></td>
                 <td className="td whitespace-nowrap text-right">
                   <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="p-1 text-muted hover:text-white" onClick={() => setDetail(tool)}><Eye size={16} /></button>
-                  <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '1', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={16} /></button>
+                  <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="p-1 text-muted hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool }) }}><Pencil size={16} /></button>
                 </td>
               </tr>
             })}
-            {!loading && !rows.length && <tr><td colSpan={7} className="td py-10 text-center text-muted">{data.length ? 'No hay herramientas que coincidan con esos filtros.' : 'Aún no hay herramientas. Crea la primera con “Nueva herramienta”.'}</td></tr>}
+            {!loading && !rows.length && <tr><td colSpan={6} className="td py-10 text-center text-muted">{data.length ? 'No hay herramientas que coincidan con esos filtros.' : 'Aún no hay herramientas. Crea la primera con “Nueva herramienta”.'}</td></tr>}
           </tbody>
         </table>
         </Card>
@@ -163,27 +155,21 @@ export default function Tools() {
         {rows.map((tool) => {
           const loaned = outstanding[tool.id] || 0
           const status = currentToolStatus(tool, loaned)
-          const partlyInUse = tool.estado === 'DISPONIBLE' && tool.stock_actual > 0 && loaned > 0
           return <Card key={tool.id} className="min-w-0 overflow-hidden">
             <div className="flex min-w-0 items-start justify-between gap-3 border-b border-line p-3">
               <div className="min-w-0">
                 <p className="break-all font-mono text-sm text-brand">{tool.codigo}</p>
                 <h3 className="mt-1 break-words font-medium">{tool.nombre}</h3>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge v={status} />
-                {partlyInUse && <Badge v="EN_USO" />}
-              </div>
+              <Badge v={status} />
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-3 p-3">
               <div className="min-w-0"><p className="text-xs text-muted">Categoría</p><p className="break-words text-sm">{tool.categoria}</p></div>
-              <div className="min-w-0"><p className="text-xs text-muted">Ubicación</p><p className="break-words text-sm">{tool.ubicacion || '—'}</p></div>
-              <div><p className="text-xs text-muted">En bodega</p><p className={`text-sm font-medium ${tool.stock_actual <= tool.stock_minimo ? 'text-amber-400' : ''}`}>{tool.stock_actual}</p></div>
-              <div><p className="text-xs text-muted">Stock mínimo</p><p className="text-sm">{tool.stock_minimo}</p></div>
+              <div className="min-w-0"><p className="text-xs text-muted">Ubicación actual</p><p className="break-words text-sm">{tool.ubicacion || '—'}</p></div>
             </div>
             <div className="flex justify-end gap-2 border-t border-line p-2">
               <button aria-label={`Ver detalle ${tool.codigo}`} title="Ver detalle" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => setDetail(tool)}><Eye size={18} /></button>
-              <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool, stock_inicial: '1', stock_minimo: String(tool.stock_minimo) }) }}><Pencil size={18} /></button>
+              <button aria-label={`Editar ${tool.codigo}`} title="Editar" className="rounded-md p-2 text-muted hover:bg-line hover:text-white" onClick={() => { setErr(''); setPendingFiles([]); setForm({ ...tool }) }}><Pencil size={18} /></button>
             </div>
           </Card>
         })}
@@ -195,10 +181,9 @@ export default function Tools() {
           <Field label="Nombre"><input className="inp" required value={form.nombre} onChange={set('nombre')} /></Field>
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
             <Combobox label="Categoría" value={form.categoria} options={categories} onChange={(value) => setForm({ ...form, categoria: value })} allowCustom placeholder="Buscar o escribir categoría" required />
-            <Field label="Ubicación"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
-            <NumberField label="Stock mínimo" value={form.stock_minimo} onChange={(value) => setForm({ ...form, stock_minimo: value })} required />
+            <Field label="Ubicación actual"><input className="inp" value={form.ubicacion ?? ''} onChange={set('ubicacion')} /></Field>
             <Field label="Condición"><select className="inp" value={form.estado} onChange={set('estado')}>
-              <option value="DISPONIBLE">Disponible</option>{form.estado === 'EN_USO' && <option value="EN_USO">En uso</option>}<option value="EN_REPARACION">En mantenimiento</option><option value="BAJA">Dado de baja</option>
+              <option value="DISPONIBLE">Disponible</option>{form.estado === 'EN_USO' && <option value="EN_USO">En uso</option>}<option value="EN_REPARACION">En reparación</option><option value="BAJA">Dada de baja</option>
             </select></Field>
           </div>
           <ToolDocuments

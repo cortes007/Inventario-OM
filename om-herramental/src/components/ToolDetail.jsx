@@ -22,7 +22,7 @@ export default function ToolDetail({ tool, onClose }) {
     ...movements.map((movement) => ({
       id: movement.id,
       date: movement.created_at,
-      title: `${movement.tipo === 'SALIDA' ? 'Salida' : 'Entrada'} · ${movement.cantidad} unidad(es)`,
+      title: movement.tipo === 'SALIDA' ? 'Salida del activo' : 'Devolución del activo',
       description: [movement.responsable, movement.destino, movement.observacion].filter(Boolean).join(' · '),
       status: movement.tipo,
     })),
@@ -47,7 +47,7 @@ export default function ToolDetail({ tool, onClose }) {
             <Badge v={status} />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {[['Código de activo', tool.codigo], ['Unidades en bodega', tool.stock_actual], ['Stock mínimo', tool.stock_minimo]].map(([label, value]) => (
+            {[['Código de activo', tool.codigo], ['Ubicación actual', tool.ubicacion || '—'], ['Condición', statusLabel(status)]].map(([label, value]) => (
               <Card key={label} className="p-3"><p className="text-xs text-muted">{label}</p><p className="mt-1 font-medium">{value}</p></Card>
             ))}
           </div>
@@ -55,6 +55,7 @@ export default function ToolDetail({ tool, onClose }) {
         <ToolDocuments toolId={tool.id} />
         <section className="space-y-3">
           <div className="flex items-center gap-2"><CalendarClock size={17} className="text-brand" /><h4 className="font-medium">Historial de movimientos y estados</h4></div>
+          <div className="max-h-[40dvh] space-y-1 overflow-y-auto pr-2">
           {events.map((event) => <div key={event.id} className="flex gap-3 border-l border-line pl-4">
             <div className="min-w-0 flex-1 pb-3">
               <div className="flex flex-wrap items-center gap-2"><Badge v={event.status} /><span className="text-sm font-medium">{event.title}</span></div>
@@ -63,6 +64,7 @@ export default function ToolDetail({ tool, onClose }) {
             </div>
           </div>)}
           {!events.length && <p className="text-sm text-muted">Aún no hay movimientos ni cambios de estado.</p>}
+          </div>
         </section>
       </div>
     </Modal>

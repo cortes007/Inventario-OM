@@ -16,9 +16,9 @@ export function currentToolStatus(tool, outstanding = 0) {
 
 export function statusLabel(status) {
   return ({
-    DISPONIBLE: 'En bodega',
-    EN_USO: 'En obra / prestada',
-    EN_REPARACION: 'En mantenimiento',
-    BAJA: 'Dado de baja',
+    DISPONIBLE: 'Disponible',
+    EN_USO: 'En uso',
+    EN_REPARACION: 'En reparación',
+    BAJA: 'Dada de baja',
   })[status] || status
 }

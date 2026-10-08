@@ -14,7 +14,7 @@ export default function ToolDocuments({
   onPendingFilesChange = () => {},
 }) {
   const input = useRef(null)
-  const { data, loading, error, reload } = useResource(
+  const { data, initialLoading: loading, error, reload } = useResource(
     () => toolId ? toolDocumentService.listForTool(toolId) : Promise.resolve([]),
     [toolId],
   )

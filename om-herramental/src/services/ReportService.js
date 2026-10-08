@@ -6,8 +6,8 @@ export class ReportService {
   constructor(movRepo) { this.movs = movRepo }
   movements(filters) { return this.movs.between(filters) }
   summary(rows) {
-    const sum = (t) => rows.filter((r) => r.tipo === t).reduce((a, r) => a + r.cantidad, 0)
-    return { entradas: sum('ENTRADA'), salidas: sum('SALIDA'), total: rows.length }
+    const count = (type) => rows.filter((row) => row.tipo === type).length
+    return { entradas: count('ENTRADA'), salidas: count('SALIDA'), total: rows.length }
   }
   movementsCSV(rows) {
     return toCSV(this.movementRows(rows))
@@ -19,14 +19,19 @@ export class ReportService {
       Tipo: movement.tipo,
       'Código de activo': movement.herramientas?.codigo ?? '',
       Herramienta: movement.herramientas?.nombre ?? '',
-      Cantidad: movement.cantidad,
       Responsable: movement.responsable,
       Destino: movement.destino ?? '',
       Observación: movement.observacion ?? '',
     }))
   }
   inventoryCSV(tools) {
-    return toCSV(tools.map((t) => ({ Código: t.codigo, Nombre: t.nombre, Categoría: t.categoria, Ubicación: t.ubicacion ?? '', Stock: t.stock_actual, 'Stock mínimo': t.stock_minimo, Estado: t.estado })))
+    return toCSV(tools.map((t) => ({
+      'Código de activo': t.codigo,
+      Nombre: t.nombre,
+      Categoría: t.categoria,
+      'Ubicación actual': t.ubicacion ?? '',
+      Condición: statusLabel(t.estado),
+    })))
   }
   inventoryRows(tools) {
     return this.inventoryRowsWithMovements(tools, [])
@@ -36,12 +41,8 @@ export class ReportService {
       'Código de activo': t.codigo,
       Herramienta: t.nombre,
       Categoría: t.categoria,
-      Ubicación: t.ubicacion ?? '',
-      'Unidades en bodega': t.stock_actual,
-      'Unidades en obra': Math.max(0, outstanding[t.id] || 0),
-      'Stock mínimo': t.stock_minimo,
+      'Ubicación actual': t.ubicacion ?? '',
       Estado: statusLabel(currentToolStatus(t, outstanding[t.id] || 0)),
-      'Alerta de stock': t.estado !== 'BAJA' && t.stock_actual <= t.stock_minimo ? 'Bajo' : 'Normal',
     }))
   }
 }

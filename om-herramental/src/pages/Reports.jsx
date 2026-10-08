@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileSpreadsheet, FileText, Sparkles } from 'lucide-react'
 import { movementService, reportService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
+import { supabase } from '../lib/supabase'
 
 import { Alert, Badge, Button, Card, Field } from '../components/ui'
 
@@ -10,7 +11,7 @@ const now = new Date()
 
 export default function Reports() {
   const [flt, setFlt] = useState({ desde: iso(new Date(now.getFullYear(), now.getMonth(), 1)), hasta: iso(now), tipo: '' })
-  const { data, loading, error } = useResource(() => reportService.movements(flt), [flt])
+  const { data, initialLoading: loading, error } = useResource(() => reportService.movements(flt), [flt])
   const [exportError, setExportError] = useState('')
   const [exporting, setExporting] = useState(false)
   const [analisisIA, setAnalisisIA] = useState('')
@@ -57,10 +58,17 @@ export default function Reports() {
     setCargandoIA(true)
     setAnalisisIA('')
     try {
-      const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-      const response = await fetch(`${apiBaseUrl}/api/analizar-movimientos`, {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.access_token) {
+        throw new Error('Tu sesión expiró. Inicia sesión de nuevo para solicitar el análisis.')
+      }
+      const response = await fetch('/api/analizar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           fechaDesde: flt.desde,
           fechaHasta: flt.hasta,
@@ -75,16 +83,23 @@ export default function Reports() {
       try {
         result = responseText ? JSON.parse(responseText) : {}
       } catch {
-        throw new Error(`El backend devolvió una respuesta no válida (HTTP ${response.status}). Verifica que el servicio de análisis esté activo.`)
+        throw new Error(`El servicio de análisis devolvió una respuesta no válida (HTTP ${response.status}). Verifica que la función esté activa.`)
       }
-      if (!response.ok) throw new Error(result.error || 'Error desconocido')
+      if (!response.ok) {
+        const errorMessage = typeof result.error === 'string'
+          ? result.error
+          : typeof result.message === 'string'
+            ? result.message
+            : `Error HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ''}`
+        throw new Error(errorMessage)
+      }
       if (typeof result.analisis !== 'string' || !result.analisis.trim()) {
-        throw new Error('El backend no devolvió un análisis. Revisa los logs del backend.')
+        throw new Error('El servicio de análisis no devolvió un resultado. Revisa los logs de la función.')
       }
       setAnalisisIA(result.analisis)
     } catch (err) {
       setExportError(err instanceof TypeError
-        ? 'No se pudo conectar con el backend de análisis. Inícialo y verifica que esté disponible.'
+        ? 'No se pudo conectar con el servicio de análisis. Verifica que la función esté disponible.'
         : err.message)
     } finally {
       setCargandoIA(false)
@@ -120,20 +135,20 @@ export default function Reports() {
         </Card>
       )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[['Movimientos', s.total], ['Unidades que entraron', s.entradas], ['Unidades que salieron', s.salidas]].map(([l, v]) => (
+        {[['Movimientos', s.total], ['Activos que entraron', s.entradas], ['Activos que salieron', s.salidas]].map(([l, v]) => (
           <Card key={l} className="p-4"><p className="text-xs text-muted">{l}</p><p className="mt-1 text-2xl font-semibold">{v}</p></Card>))}
       </div>
       <Alert>{error}</Alert>
       <Card className="max-h-[min(70dvh,720px)] min-w-0 overflow-auto">
         <table className="w-full min-w-[1100px]">
-          <thead className="sticky top-0 z-10 border-b border-line bg-panel"><tr>{['Referencia', 'Fecha', 'Tipo', 'Código de activo', 'Herramienta', 'Cant.', 'Responsable', 'Destino', 'Observación'].map((h) => <th key={h} className="th whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead className="sticky top-0 z-10 border-b border-line bg-panel"><tr>{['Referencia', 'Fecha', 'Tipo', 'Código de activo', 'Herramienta', 'Responsable', 'Ubicación', 'Observación'].map((h) => <th key={h} className="th whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">
             {data.map((m) => (<tr key={m.id}><td className="td font-mono text-brand">{m.codigo}</td><td className="td text-muted">{new Date(m.created_at).toLocaleString('es-CO')}</td>
               <td className="td"><Badge v={m.tipo} /></td><td className="td font-mono text-brand">{m.herramientas?.codigo || '—'}</td>
-              <td className="td">{m.herramientas?.nombre || '—'}</td><td className="td">{m.cantidad}</td>
+              <td className="td">{m.herramientas?.nombre || '—'}</td>
               <td className="td">{m.responsable || '—'}</td><td className="td text-muted">{m.destino || '—'}</td>
               <td className="td text-muted">{m.observacion || '—'}</td></tr>))}
-            {!loading && !data.length && <tr><td colSpan={9} className="td py-10 text-center text-muted">No hay movimientos en este rango. Amplía las fechas.</td></tr>}
+            {!loading && !data.length && <tr><td colSpan={8} className="td py-10 text-center text-muted">No hay movimientos en este rango. Amplía las fechas.</td></tr>}
           </tbody>
         </table>
         {!loading && data.length > 9 && <p className="border-t border-line bg-panel px-4 py-3 text-xs text-muted">Hay {data.length} movimientos; desplázate en la tabla para consultarlos. Excel incluye todo el resultado filtrado.</p>}

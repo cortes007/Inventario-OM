@@ -9,12 +9,14 @@ export const Field = ({ label, children }) => (
 )
 export const Alert = ({ children }) => children ? <p className="rounded-md border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300">{children}</p> : null
 const tone = { DISPONIBLE: 'bg-emerald-950 text-brand', EN_USO: 'bg-orange-950 text-orange-400', EN_REPARACION: 'bg-amber-950 text-amber-400', BAJA: 'bg-zinc-800 text-zinc-400', ENTRADA: 'bg-emerald-950 text-brand', SALIDA: 'bg-orange-950 text-orange-400' }
-export const Badge = ({ v }) => <span className={`rounded-full px-2 py-0.5 text-xs ${tone[v] || 'bg-zinc-800 text-zinc-300'}`}>{String(v || '').replaceAll('_', ' ').toLowerCase()}</span>
+const badgeLabel = { DISPONIBLE: 'Disponible', EN_USO: 'En uso', EN_REPARACION: 'En reparación', BAJA: 'Dada de baja', ENTRADA: 'Entrada', SALIDA: 'Salida' }
+export const Badge = ({ v }) => <span className={`rounded-full px-2 py-0.5 text-xs ${tone[v] || 'bg-zinc-800 text-zinc-300'}`}>{badgeLabel[v] || String(v || '').replaceAll('_', ' ').toLowerCase()}</span>
 export const Modal = ({ title, onClose, children, className = 'max-w-lg' }) => (
-  <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:items-center sm:p-4" onClick={onClose}>
-    <div className={`my-auto max-h-[calc(100dvh-1.5rem)] w-full overflow-y-auto rounded-lg border border-line bg-panel p-4 sm:max-h-[90dvh] sm:p-5 ${className}`} onClick={(e) => e.stopPropagation()}>
-      <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-line bg-panel px-4 py-3 sm:-mx-5 sm:-mt-5 sm:px-5"><h3 className="min-w-0 pr-3 font-medium">{title}</h3>
-        <button onClick={onClose} aria-label="Cerrar"><X size={18} /></button></div>{children}
+  <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/70 p-3 sm:p-4" onClick={onClose}>
+    <div className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-lg border border-line bg-panel sm:max-h-[90dvh] ${className}`} onClick={(e) => e.stopPropagation()}>
+      <div className="flex shrink-0 items-center justify-between border-b border-line bg-panel px-4 py-3 sm:px-5"><h3 className="min-w-0 pr-3 font-medium">{title}</h3>
+        <button onClick={onClose} aria-label="Cerrar"><X size={18} /></button></div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">{children}</div>
     </div>
   </div>
 )
