@@ -1,3 +1,5 @@
+export const WAREHOUSE_LOCATION = 'Bodega'
+
 export function outstandingByTool(movements) {
   return movements.reduce((totals, movement) => {
     const isOpeningStock = movement.tipo === 'ENTRADA' && movement.observacion === 'Stock inicial'

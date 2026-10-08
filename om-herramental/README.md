@@ -6,7 +6,7 @@
 3. `cp .env.example .env` y pega la anon key (Project Settings → API).
 4. `npm install && npm run dev` (para ejecutar frontend y función API desde una terminal).
 
-Si la base ya existe, aplica las migraciones de `supabase/migrations/` en orden antes de usar los nuevos movimientos por activo.
+Si la base ya existe, aplica las migraciones de `supabase/migrations/` en orden antes de usar los nuevos movimientos por activo. Las migraciones `20261008000000_return_assets_to_warehouse.sql` y `20261008000100_ensure_batch_returns_to_warehouse.sql` hacen que todos los activos de una devolución por lote vuelvan a Bodega; el origen de cada activo se muestra desde su ubicación actual, que quedó registrada en la salida.
 
 El comando `npm run dev` también sirve `/api/analizar` y carga `GROQ_API_KEY` y `GROQ_MODEL` desde `../backend/.env`, si existe. No necesitas iniciar aparte el servidor antiguo de `backend/`. En Vercel, establece `om-herramental` como **Root Directory** y configura `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `GROQ_API_KEY` como variables de entorno. `GROQ_MODEL` es opcional. La función verifica el token de la sesión de Supabase antes de consumir Groq; por ello, ambas variables `VITE_SUPABASE_*` también deben estar disponibles para la función.
 

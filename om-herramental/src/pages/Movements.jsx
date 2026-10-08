@@ -3,6 +3,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Plus, Trash2 } from 'lucide-react'
 import { movementService, toolService } from '../container'
 import { useResource } from '../hooks/useResource'
 import { useInventoryRealtime } from '../hooks/useInventoryRealtime'
+import { WAREHOUSE_LOCATION } from '../utils/inventory'
 import { Alert, Badge, Button, Card, Combobox, Field } from '../components/ui'
 import { createId } from '../utils/id'
 
@@ -28,7 +29,11 @@ export default function Movements() {
     : (outstanding.data[tool.id] || 0) > 0 && tool.stock_actual === 0)
   const addableTools = eligibleTools.filter((tool) => !items.some((item) => item.herramienta_id === tool.id))
   const setType = (type) => {
-    setF((current) => ({ ...current, tipo: type }))
+    setF((current) => ({
+      ...current,
+      tipo: type,
+      destino: type === 'ENTRADA' ? WAREHOUSE_LOCATION : '',
+    }))
     setItems([newItem()])
   }
 
@@ -80,12 +85,18 @@ export default function Movements() {
                       value: entry.id,
                       label: `${entry.codigo} · ${entry.nombre}`,
                     }))
+                  const selectedTool = tools.data.find((entry) => entry.id === item.herramienta_id)
                   return <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 rounded-md border border-line p-2">
                     <div className="col-span-2 flex min-w-0 items-end gap-2">
                       <div className="min-w-0 flex-1">
                         <Combobox label={`Herramienta ${items.findIndex((entry) => entry.id === item.id) + 1}`} value={item.herramienta_id}
                           options={options} required placeholder={f.tipo === 'SALIDA' ? 'Buscar por código o nombre…' : 'Buscar activo prestado…'}
                           onChange={(value) => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, herramienta_id: value } : entry))} />
+                        {f.tipo === 'ENTRADA' && selectedTool && (
+                          <p className="mt-1 text-xs text-muted">
+                            Se devuelve desde: <span className="capitalize text-zinc-300">{selectedTool.ubicacion || 'Ubicación no registrada'}</span>
+                          </p>
+                        )}
                       </div>
                       {items.length > 1 && <button type="button" aria-label="Quitar herramienta de la operación" className="mb-1 rounded-md p-2 text-muted hover:bg-line hover:text-red-400"
                         onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))}><Trash2 size={16} /></button>}
@@ -101,9 +112,17 @@ export default function Movements() {
                 <p className="text-xs text-muted">No hay herramientas pendientes de devolución.</p>}
             </div>
             <Field label={f.tipo === 'SALIDA' ? 'Quién la recibe' : 'Quién la devuelve'}><input className="inp" list="people" required value={f.responsable} onChange={set('responsable')} /></Field>
-            <Field label={f.tipo === 'SALIDA' ? 'Nueva ubicación / destino' : 'Ubicación de devolución'}>
+            {f.tipo === 'SALIDA' ? (
+              <Field label="Nueva ubicación / destino">
               <input className="inp" list="places" required value={f.destino} onChange={set('destino')} />
-            </Field>
+              </Field>
+            ) : (
+              <div className="rounded-md border border-line bg-bg px-3 py-2">
+                <p className="text-xs text-muted">Ubicación de regreso</p>
+                <p className="mt-1 text-sm font-medium text-brand">{WAREHOUSE_LOCATION}</p>
+                <p className="mt-1 text-xs text-muted">El origen se toma de la ubicación registrada al entregar cada activo.</p>
+              </div>
+            )}
             <Field label="Observación (opcional)"><input className="inp" value={f.observacion} onChange={set('observacion')} /></Field>
             <datalist id="people">{people.map((p) => <option key={p} value={p} />)}</datalist>
             <datalist id="places">{places.map((p) => <option key={p} value={p} />)}</datalist>

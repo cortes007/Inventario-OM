@@ -117,7 +117,9 @@ begin
   if new.cantidad <> 1 then
     raise exception 'Cada movimiento debe corresponder a un solo activo';
   end if;
-  if nullif(btrim(new.destino), '') is null then
+  if new.tipo = 'ENTRADA' then
+    new.destino := 'Bodega';
+  elsif nullif(btrim(new.destino), '') is null then
     raise exception 'Indica la nueva ubicación del activo';
   end if;
 
@@ -170,7 +172,7 @@ begin
   end if;
 
   update public.herramientas
-     set ubicacion = btrim(new.destino),
+     set ubicacion = case when new.tipo = 'ENTRADA' then 'Bodega' else btrim(new.destino) end,
          estado = case
            when new.tipo = 'SALIDA' then 'EN_USO'
            when estado = 'EN_USO' then 'DISPONIBLE'
@@ -352,6 +354,11 @@ begin
       (select auth.uid())
     )
     returning * into v_movement;
+
+    update public.herramientas
+       set ubicacion = 'Bodega',
+           estado = case when estado = 'EN_USO' then 'DISPONIBLE' else estado end
+     where id = v_tool.id;
 
     return next v_movement;
   end loop;
