@@ -17,3 +17,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Archivos de especificaciones
+spec*.md
+tasks*.md
+reports*.md
+constitution*.md

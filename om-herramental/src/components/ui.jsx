@@ -20,7 +20,7 @@ export const Modal = ({ title, onClose, children, className = 'max-w-lg' }) => (
     </div>
   </div>
 )
-export const Card = ({ children, className = '' }) => <div className={`rounded-lg border border-line bg-panel ${className}`}>{children}</div>
+export const Card = ({ children, className = '', ...p }) => <div {...p} className={`rounded-lg border border-line bg-panel ${className}`}>{children}</div>
 
 export function NumberField({ label, value, onChange, min = 0, max = Number.POSITIVE_INFINITY, required = false }) {
   const update = (next) => onChange(String(Math.min(max, Math.max(min, Number(next) || 0))))
