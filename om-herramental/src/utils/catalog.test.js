@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { groupToolsCatalog } from './catalog'
+import { describe, expect, it, vi } from 'vitest'
+import { groupToolsCatalog, scrollCatalogCardIntoView } from './catalog'
 
 describe('groupToolsCatalog', () => {
   it('retorna una lista vacía si tools es null, undefined o un array vacío', () => {
@@ -80,5 +80,42 @@ describe('groupToolsCatalog', () => {
       'Cinta métrica',
       'Sierra circular',
     ])
+  })
+})
+
+describe('scrollCatalogCardIntoView', () => {
+  it('programa el scroll tras el frame y alinea la cabecera al inicio del viewport (block: start)', () => {
+    const scrollIntoView = vi.fn()
+    const element = { scrollIntoView }
+    let scheduledCallback
+    const scheduleFrame = vi.fn((cb) => {
+      scheduledCallback = cb
+      return 42
+    })
+    const cancelFrame = vi.fn()
+
+    const cleanup = scrollCatalogCardIntoView(element, scheduleFrame, cancelFrame)
+
+    expect(scheduleFrame).toHaveBeenCalledTimes(1)
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    scheduledCallback()
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    })
+
+    cleanup()
+    expect(cancelFrame).toHaveBeenCalledWith(42)
+  })
+
+  it('tolera elementos nulos o sin scrollIntoView sin lanzar errores', () => {
+    const scheduleFrame = vi.fn()
+
+    expect(scrollCatalogCardIntoView(null, scheduleFrame)).toBeUndefined()
+    expect(scrollCatalogCardIntoView({}, scheduleFrame)).toBeUndefined()
+    expect(scheduleFrame).not.toHaveBeenCalled()
   })
 })

@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { ChevronDown, Eye, Pencil, Plus } from 'lucide-react'
 import { Badge, Button, Card } from './ui'
+import { scrollCatalogCardIntoView } from '../utils/catalog'
 
 /**
  * Tarjeta de Catálogo de Herramienta.
  * Representa una familia de activos individuales agrupados por nombre y categoría.
- * Soporta animación de expansión a fila completa (col-span-full) y reordenamiento superior (order-first).
+ * Soporta expansión a fila completa (col-span-full) y reordenamiento superior (order-first).
  */
 export default function ToolCatalogCard({
   item,
@@ -18,18 +19,15 @@ export default function ToolCatalogCard({
   const cardElementId = `catalog-card-${item.id}`
 
   useEffect(() => {
-    if (isExpanded) {
-      const element = document.getElementById(cardElementId)
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      }
-    }
+    if (!isExpanded) return undefined
+    const element = document.getElementById(cardElementId)
+    return scrollCatalogCardIntoView(element)
   }, [isExpanded, cardElementId])
 
   return (
     <Card
       id={cardElementId}
-      className={`min-w-0 transition-all duration-300 ease-in-out ${
+      className={`min-w-0 scroll-mt-4 transition-colors transition-shadow duration-300 ease-in-out ${
         isExpanded
           ? 'col-span-full order-first border-brand/50 bg-panel shadow-lg ring-1 ring-brand/30'
           : 'col-span-1 order-none hover:border-brand/30 hover:bg-white/[0.01]'

@@ -67,3 +67,43 @@ export function groupToolsCatalog(tools, outstanding = {}) {
     a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
   )
 }
+
+/**
+ * Posiciona la cámara del navegador directamente sobre la cabecera (`block: 'start'`)
+ * de la tarjeta de catálogo expandida tras completarse el reflujo del layout (`order-first`).
+ *
+ * @param {HTMLElement|null} element - Elemento DOM de la tarjeta expandida.
+ * @param {Function} [scheduleFrame] - Planificador de frame (por defecto requestAnimationFrame).
+ * @param {Function} [cancelFrame] - Cancelador de frame (por defecto cancelAnimationFrame).
+ * @returns {Function|undefined} Función de limpieza para cancelar el frame si sigue pendiente.
+ */
+export function scrollCatalogCardIntoView(
+  element,
+  scheduleFrame = typeof globalThis.requestAnimationFrame === 'function'
+    ? globalThis.requestAnimationFrame.bind(globalThis)
+    : (cb) => {
+        cb()
+        return 0
+      },
+  cancelFrame = typeof globalThis.cancelAnimationFrame === 'function'
+    ? globalThis.cancelAnimationFrame.bind(globalThis)
+    : () => {}
+) {
+  if (!element || typeof element.scrollIntoView !== 'function') {
+    return undefined
+  }
+
+  const frameId = scheduleFrame(() => {
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    })
+  })
+
+  return () => {
+    if (frameId) {
+      cancelFrame(frameId)
+    }
+  }
+}
